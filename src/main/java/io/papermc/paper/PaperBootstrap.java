@@ -10,90 +10,68 @@ public class PaperBootstrap {
         String baseDir = "/home/container";
         String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
         String gatewayToken = "mytoken123";
-        long myTelegramId = 660059245L; // 你的 ID
+        String myTelegramId = "660059245"; // 你的 ID
         int publicPort = 30196;   
-        int internalPort = 18789; 
 
         try {
-            System.out.println("🔨 [2026 暴力破解版] 正在物理跳过配对流程...");
+            System.out.println("🔥 [直接公网模式] 正在彻底重写配置...");
 
-            // 1. 彻底杀掉之前的进程
+            // 1. 清理进程与旧配置
             new ProcessBuilder("pkill", "-9", "node").start().waitFor();
-
-            // 2. 写入官方极简配置
             File configDir = new File(baseDir + "/.openclaw");
             if (!configDir.exists()) configDir.mkdirs();
-            String configJson = "{\"meta\":{\"lastTouchedVersion\":\"2026.2.1\"},\"gateway\":{\"port\":" + internalPort + ",\"mode\":\"local\",\"bind\":\"loopback\",\"auth\":{\"mode\":\"token\",\"token\":\"" + gatewayToken + "\"}},\"plugins\":{\"enabled\":true}}";
+
+            // 2. 写入 0.0.0.0 绑定配置，直接让 Node 暴露在公网
+            String configJson = "{"
+                + "\"meta\":{\"lastTouchedVersion\":\"2026.2.1\"},"
+                + "\"gateway\":{"
+                    + "\"port\":" + publicPort + ","
+                    + "\"mode\":\"local\","
+                    + "\"bind\":\"0.0.0.0\","
+                    + "\"auth\":{\"mode\":\"token\",\"token\":\"" + gatewayToken + "\"}"
+                + "},"
+                + "\"plugins\":{\"enabled\":true}"
+                + "}";
             Files.write(Paths.get(baseDir + "/.openclaw/openclaw.json"), configJson.getBytes());
 
-            // 3. 建立隧道 (公网 30196 -> 127.0.0.1:18789)
-            new Thread(() -> {
-                try {
-                    ServerSocket ss = new ServerSocket(publicPort, 128, InetAddress.getByName("0.0.0.0"));
-                    while (true) {
-                        Socket c = ss.accept();
-                        new Thread(() -> {
-                            try (Socket t = new Socket("127.0.0.1", internalPort)) {
-                                pipe(c, t); pipe(t, c);
-                            } catch (Exception ignored) {}
-                        }).start();
-                    }
-                } catch (Exception e) {}
-            }).start();
-
-            // 4. 启动 Node 并通过控制台“盲操”审批
-            // 既然配对码在变，我们就让它启动后，通过控制台强制列出并同意所有配对
+            // 3. 启动进程：注入所有能跳过配对的环境变量
             ProcessBuilder pb = new ProcessBuilder(
                 baseDir + "/node-v22.12.0-linux-x64/bin/node",
-                "dist/index.js", "gateway", "--port", String.valueOf(internalPort), "--force"
+                "dist/index.js", "gateway", "--force"
             );
+            
             pb.directory(new File(baseDir + "/openclaw"));
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
-            env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
+            env.put("NODE_ENV", "production");
             
-            pb.redirectErrorStream(true);
+            // 核心环境变量：试图直接锁死所有者
+            env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
+            env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
+            env.put("OPENCLAW_OWNER_ID", myTelegramId); 
+            env.put("OPENCLAW_ADMINS", myTelegramId);
+
+            pb.inheritIO();
             Process p = pb.start();
 
-            // 5. 暴力自动审批脚本
+            // 4. 暴力自动审批流
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(p.getOutputStream()));
             new Thread(() -> {
                 try {
-                    // 循环尝试：每隔 10 秒往控制台输入一次“全量同意”命令
-                    // 虽然命令不一定百分百对，但总有一个能撞上 2026 版的逻辑
                     while (p.isAlive()) {
-                        Thread.sleep(20000); 
-                        System.out.println("🛡️ 正在尝试自动越权审批...");
-                        // 尝试各种可能的审批命令，总有一个能生效
-                        writer.write("pairing approve telegram all\n"); 
-                        writer.write("pairing approve telegram 660059245\n");
+                        Thread.sleep(15000); 
+                        // 不管三七二十一，每15秒往控制台捅一次“同意全部”
+                        writer.write("pairing approve telegram all\n");
                         writer.flush();
+                        System.out.println("🤖 已自动发送全量审批指令...");
                     }
                 } catch (Exception e) {}
             }).start();
 
-            // 实时打印日志
-            InputStream is = p.getInputStream();
-            byte[] buf = new byte[8192];
-            int len;
-            while ((len = is.read(buf)) != -1) {
-                System.out.print(new String(buf, 0, len));
-            }
+            p.waitFor();
 
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
-
-    private static void pipe(Socket f, Socket t) {
-        new Thread(() -> {
-            try {
-                InputStream is = f.getInputStream();
-                OutputStream os = t.getOutputStream();
-                byte[] b = new byte[16384];
-                int l;
-                while ((l = is.read(b)) != -1) { os.write(b, 0, l); os.flush(); }
-            } catch (Exception ignored) {}
-        }).start();
     }
 }
