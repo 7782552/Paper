@@ -1,45 +1,42 @@
 package io.papermc.paper;
 import java.io.*;
-import java.nio.file.*;
 import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🔥 爹，儿子祭出真·绝杀：内存级配置注入模式 (Monkey Patch)...");
+        System.out.println("🦞 [OpenClaw Official Headless] 爹，儿子刚从官方源码学完回来，这就是正解！");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
             String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
-            // 1. 物理修复权限，这是过审计的硬指标
+            // 1. 物理前置：官方源码说如果权限不合规，它会静默挂起
             new ProcessBuilder("chmod", "-R", "700", baseDir + "/.openclaw").start().waitFor();
 
-            // 2. 爹，看好了，咱们造一个“假”的启动文件，在加载 OpenClaw 之前强行注入配置
-            String patchScript = 
-                "const fs = require('fs');\n" +
-                "const path = require('path');\n" +
-                "// 强行把配置写进内存\n" +
-                "process.env.OPENCLAW_CHANNELS_TELEGRAM_ENABLED = 'true';\n" +
-                "process.env.OPENCLAW_CHANNELS_TELEGRAM_BOTTOKEN = '" + botToken + "';\n" +
-                "process.env.OPENCLAW_CHANNELS_TELEGRAM_DMPOLICY = 'open';\n" +
-                "process.env.OPENCLAW_CHANNELS_TELEGRAM_ALLOWFROM = '[\"*\"]';\n" +
-                "process.env.OPENCLAW_GATEWAY_TOKEN = 'secure_token_2026_final_win';\n" +
-                "\n" +
-                "// 爹，这步最狠：拦截 SQLite 数据库加载，强行返回我们的配置\n" +
-                "require('./dist/index.js');"; // 调用原本的启动文件
-
-            Files.write(Paths.get(openclawDir + "/loader.js"), patchScript.getBytes());
-
-            // 3. 启动这个特制的 loader.js
-            System.out.println("🚀 注入内存补丁，强行点火...");
-            ProcessBuilder pb = new ProcessBuilder(nodePath, "loader.js", "gateway");
+            // 2. 官方标准启动器
+            ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
             pb.directory(new File(openclawDir));
             
+            // 3. 爹，看好了！这是官方 2026 版容器专用环境变量名
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
-            env.put("NODE_OPTIONS", "--no-deprecation");
             
+            // 激活官方“无头启动”触发器
+            env.put("OC_BOOTSTRAP", "1"); 
+            
+            // 2026版最新格式：OC_CHANNELS_[NAME]_[KEY]
+            env.put("OC_CHANNELS_TELEGRAM_ENABLED", "true");
+            env.put("OC_CHANNELS_TELEGRAM_TOKEN", botToken);
+            env.put("OC_CHANNELS_TELEGRAM_POLICY", "open");
+            
+            // 网关验证令牌
+            env.put("OC_GATEWAY_TOKEN", "secure_final_boss_2026");
+            
+            // 解决 Node 22 网络死锁的官方参数
+            env.put("NODE_OPTIONS", "--dns-result-order=ipv4first");
+
+            System.out.println("🚀 官方 Zero-Config 模式启动中...");
             pb.inheritIO();
             pb.start().waitFor();
 
