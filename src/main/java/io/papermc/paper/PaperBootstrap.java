@@ -5,40 +5,27 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🕵️ [OpenClaw] 正在强制运行 Schema 生成函数...");
+        System.out.println("🎣 [OpenClaw] 正在执行“报错钓鱼”法，请观察下方 Problem 提示...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
 
-            String probeScript = 
-                "import path from 'path';\n" +
-                "async function probe() {\n" +
-                "  console.log('--- START STRUCTURE PROBE ---');\n" +
-                "  try {\n" +
-                "    const schemaModule = await import('file://' + path.join(process.cwd(), 'dist/config/schema.js'));\n" +
-                "    // 核心改动：执行这个函数来获取真正的结构定义\n" +
-                "    const schema = schemaModule.buildConfigSchema();\n" +
-                "    \n" +
-                "    // 递归打印所有属性名，帮我们找到 agents 和 channels 的正确拼写\n" +
-                "    const keys = (obj, indent = '') => {\n" +
-                "      for (let key in obj.properties || {}) {\n" +
-                "        console.log(indent + key);\n" +
-                "        if (obj.properties[key].properties) keys(obj.properties[key], indent + '  ');\n" +
-                "      }\n" +
-                "    };\n" +
-                "    keys(schema);\n" +
-                "  } catch (e) {\n" +
-                "    console.error('Probe failed: ' + e.stack);\n" +
-                "  }\n" +
-                "  console.log('--- END STRUCTURE PROBE ---');\n" +
-                "}\n" +
-                "probe();";
+            // 写入一个必然报错但能触发校验器的 JSON
+            // 我们故意把 agents 写成 agent，把 channels 写成 channel
+            // 目的是让它的 Doctor 告诉我们正确答案
+            String fishJson = "{\n" +
+                "  \"agent\": {},\n" +
+                "  \"channel\": {}\n" +
+                "}";
 
-            Files.write(Paths.get(openclawDir, "probe.js"), probeScript.getBytes());
+            File configDir = new File(baseDir, ".openclaw");
+            if (!configDir.exists()) configDir.mkdirs();
+            Files.write(Paths.get(baseDir, ".openclaw/openclaw.json"), fishJson.getBytes());
 
-            ProcessBuilder pb = new ProcessBuilder(nodePath, "probe.js");
+            ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
             pb.directory(new File(openclawDir));
+            pb.environment().put("HOME", baseDir);
             pb.inheritIO();
             pb.start().waitFor();
 
