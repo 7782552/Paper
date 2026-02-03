@@ -6,69 +6,55 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🚨 [OpenClaw] 开始执行物理级重装流程...");
+        System.out.println("🔨 [OpenClaw] 启动官方原位重装修复程序...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
             String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
-            // 1. 彻底清空所有残留
-            System.out.println("🧹 正在清理旧环境...");
+            // 1. 物理粉碎旧配置
             deleteDirectory(new File(baseDir, ".openclaw"));
-            // 如果你想重装代码，取消下面这行的注释（前提是你已经上传了 openclaw 的压缩包或能重新克隆）
-            // deleteDirectory(new File(openclawDir)); 
+            System.out.println("🧹 残留配置已物理粉碎。");
 
-            // 2. 建立纯净配置文件夹
-            new File(baseDir, ".openclaw").mkdirs();
+            // 2. 运行官方 Doctor 命令进行环境初始化 (不再手动写 JSON)
+            System.out.println("🔧 正在通过 Doctor 初始化环境...");
+            runCmd(nodePath, openclawDir, "doctor", "--fix");
 
-            // 3. 写入“黄金标准”配置文件 (经过 2026.2.1 版本验证)
-            // 注意：不再使用 agents.main，改用 agents.default
-            String goldConfig = "{\n" +
-                "  \"gateway\": { \"port\": 18789, \"auth\": { \"mode\": \"token\", \"token\": \"mytoken123\" } },\n" +
-                "  \"agents\": {\n" +
-                "    \"default\": {\n" +
-                "      \"model\": \"google/gemini-2.0-flash\"\n" +
-                "    }\n" +
-                "  },\n" +
-                "  \"channels\": {\n" +
-                "    \"telegram\": {\n" +
-                "      \"enabled\": true,\n" +
-                "      \"accounts\": {\n" +
-                "        \"default\": {\n" +
-                "          \"enabled\": true,\n" +
-                "          \"botToken\": \"" + botToken + "\"\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-            
-            Files.write(Paths.get(baseDir, ".openclaw/openclaw.json"), goldConfig.getBytes());
-            System.out.println("✨ 黄金标准配置已注入。");
+            // 3. 官方 onboard 命令 (静默模式)，强制它生成结构
+            System.out.println("📦 正在强制执行官方 Onboarding...");
+            runCmd(nodePath, openclawDir, "onboard", "--skip-skills", "--skip-health", "--skip-ui", "--confirm");
 
-            // 4. 强力启动：跳过所有检查，直接拉起
-            System.out.println("🚀 正在拉起全新引擎...");
+            // 4. 使用官方 config 命令设置模型 (这能保证写在它认的那个 key 下)
+            System.out.println("🧠 正在配置 Gemini 模型...");
+            runCmd(nodePath, openclawDir, "config", "set", "model", "google/gemini-2.0-flash");
+
+            // 5. 注册 Telegram
+            System.out.println("🤖 正在激活 Telegram 频道...");
+            runCmd(nodePath, openclawDir, "channels", "add", "telegram", "--token", botToken);
+
+            // 6. 最终拉起网关
+            System.out.println("🚀 尝试全功能点火...");
             ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
             pb.directory(new File(openclawDir));
-            
-            Map<String, String> env = pb.environment();
-            env.put("HOME", baseDir);
-            env.put("CI", "true");
-            env.put("OPENCLAW_GATEWAY_TOKEN", "mytoken123");
-            // 环境变量强制指定频道
-            env.put("OPENCLAW_CHANNELS", "telegram");
-
+            pb.environment().put("HOME", baseDir);
             pb.inheritIO();
-            Process p = pb.start();
-            
-            // 额外监控：给 Telegram 模块一点启动缓冲时间
-            p.waitFor();
+            pb.start().waitFor();
 
         } catch (Exception e) {
-            System.err.println("❌ 重装失败: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    private static void runCmd(String node, String dir, String... args) throws Exception {
+        List<String> cmd = new ArrayList<>();
+        cmd.add(node);
+        cmd.add("dist/index.js");
+        cmd.addAll(Arrays.asList(args));
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.directory(new File(dir));
+        pb.environment().put("HOME", "/home/container");
+        pb.start().waitFor();
     }
 
     private static void deleteDirectory(File dir) {
