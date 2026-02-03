@@ -5,46 +5,44 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🛠️ [OpenClaw] 正在写入 2026 标准版配置文件...");
+        System.out.println("🕵️ [OpenClaw] 正在启动内部结构探测器，请记录下方打印的内容...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
-            String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
-            // 1. 确保配置目录存在
-            File configDir = new File(baseDir, ".openclaw");
-            if (!configDir.exists()) configDir.mkdirs();
-
-            // 2. 写入最底层的 JSON (移除所有可能报错的 default 嵌套)
-            // 采用 2026 版最核心的扁平化结构
-            String pureJson = "{\n" +
-                "  \"gateway\": { \"port\": 18789 },\n" +
-                "  \"agents\": { \"main\": { \"model\": \"google/gemini-2.0-flash\" } },\n" +
-                "  \"channels\": {\n" +
-                "    \"telegram\": {\n" +
-                "      \"enabled\": true,\n" +
-                "      \"botToken\": \"" + botToken + "\",\n" +
-                "      \"allowFrom\": [\"*\"],\n" +
-                "      \"config\": { \"polling\": true }\n" +
-                "    }\n" +
+            // 创建探测脚本：直接读取 OpenClaw 的配置文件定义
+            String probeScript = 
+                "const fs = require('fs');\n" +
+                "const path = require('path');\n" +
+                "try {\n" +
+                "  // 尝试寻找配置文件校验定义文件\n" +
+                "  const configPath = path.join(process.cwd(), 'dist/config/config.js');\n" +
+                "  const schemaPath = path.join(process.cwd(), 'dist/config/schema.js');\n" +
+                "  console.log('--- START STRUCTURE PROBE ---');\n" +
+                "  if (fs.existsSync(schemaPath)) {\n" +
+                "    const schema = require(schemaPath);\n" +
+                "    console.log(JSON.stringify(schema, null, 2));\n" +
+                "  } else {\n" +
+                "    const config = require(configPath);\n" +
+                "    console.log('Object Keys:', Object.keys(config));\n" +
                 "  }\n" +
+                "  console.log('--- END STRUCTURE PROBE ---');\n" +
+                "} catch (e) {\n" +
+                "  console.error('Probe failed: ' + e.message);\n" +
                 "}";
 
-            Files.write(Paths.get(baseDir, ".openclaw/openclaw.json"), pureJson.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            System.out.println("✅ 配置文件已强行覆盖。");
+            Files.write(Paths.get(openclawDir, "probe.js"), probeScript.getBytes());
 
-            // 3. 极简启动 (不带任何报错参数)
-            ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
+            // 执行探测
+            ProcessBuilder pb = new ProcessBuilder(nodePath, "probe.js");
             pb.directory(new File(openclawDir));
-            
-            Map<String, String> env = pb.environment();
-            env.put("HOME", baseDir);
-            env.put("OPENCLAW_GATEWAY_TOKEN", "123456789");
-
-            System.out.println("🚀 引擎启动中...");
             pb.inheritIO();
-            pb.start().waitFor();
+            Process p = pb.start();
+            p.waitFor();
+
+            System.out.println("\n💡 请根据上方打印的结构告诉我是什么，或者直接把那段输出发给我。");
+            
         } catch (Exception e) {
             e.printStackTrace();
         }
