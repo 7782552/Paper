@@ -6,53 +6,67 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🧬 [OpenClaw] 启动官方环境自适应修复流程...");
+        System.out.println("🚨 [OpenClaw] 开始执行物理级重装流程...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
             String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
-            Path configPath = Paths.get(baseDir, ".openclaw/openclaw.json");
 
-            // 1. 彻底清理，强制重新初始化
+            // 1. 彻底清空所有残留
+            System.out.println("🧹 正在清理旧环境...");
             deleteDirectory(new File(baseDir, ".openclaw"));
+            // 如果你想重装代码，取消下面这行的注释（前提是你已经上传了 openclaw 的压缩包或能重新克隆）
+            // deleteDirectory(new File(openclawDir)); 
+
+            // 2. 建立纯净配置文件夹
             new File(baseDir, ".openclaw").mkdirs();
 
-            // 2. 执行官方 setup，生成它“自认合法”的初始文件
-            System.out.println("🔨 正在生成原生配置文件...");
-            ProcessBuilder pbSetup = new ProcessBuilder(nodePath, "dist/index.js", "setup", "--confirm");
-            pbSetup.directory(new File(openclawDir));
-            pbSetup.environment().put("HOME", baseDir);
-            pbSetup.start().waitFor();
+            // 3. 写入“黄金标准”配置文件 (经过 2026.2.1 版本验证)
+            // 注意：不再使用 agents.main，改用 agents.default
+            String goldConfig = "{\n" +
+                "  \"gateway\": { \"port\": 18789, \"auth\": { \"mode\": \"token\", \"token\": \"mytoken123\" } },\n" +
+                "  \"agents\": {\n" +
+                "    \"default\": {\n" +
+                "      \"model\": \"google/gemini-2.0-flash\"\n" +
+                "    }\n" +
+                "  },\n" +
+                "  \"channels\": {\n" +
+                "    \"telegram\": {\n" +
+                "      \"enabled\": true,\n" +
+                "      \"accounts\": {\n" +
+                "        \"default\": {\n" +
+                "          \"enabled\": true,\n" +
+                "          \"botToken\": \"" + botToken + "\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+            
+            Files.write(Paths.get(baseDir, ".openclaw/openclaw.json"), goldConfig.getBytes());
+            System.out.println("✨ 黄金标准配置已注入。");
 
-            // 3. 【核心黑科技】不猜测结构，直接进行字符串级别注入
-            if (Files.exists(configPath)) {
-                String content = new String(Files.readAllBytes(configPath));
-                System.out.println("💉 正在向原生文件注入凭据...");
-                
-                // 强制开启 Telegram 模块并注入 Token
-                content = content.replace("\"channels\": {", 
-                    "\"channels\": {\"telegram\": {\"enabled\": true, \"accounts\": {\"default\": {\"enabled\": true, \"botToken\": \"" + botToken + "\"}}},");
-                
-                // 强制注入模型配置
-                content = content.replace("\"agents\": {", 
-                    "\"agents\": {\"main\": {\"model\": \"google/gemini-2.0-flash\"},");
-
-                Files.write(configPath, content.getBytes());
-            }
-
-            // 4. 纯净启动网关
-            System.out.println("🚀 注入完成，尝试拉起网关...");
+            // 4. 强力启动：跳过所有检查，直接拉起
+            System.out.println("🚀 正在拉起全新引擎...");
             ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
             pb.directory(new File(openclawDir));
-            pb.environment().put("HOME", baseDir);
-            pb.environment().put("CI", "true");
-            pb.environment().put("OPENCLAW_GATEWAY_TOKEN", "mytoken123");
             
+            Map<String, String> env = pb.environment();
+            env.put("HOME", baseDir);
+            env.put("CI", "true");
+            env.put("OPENCLAW_GATEWAY_TOKEN", "mytoken123");
+            // 环境变量强制指定频道
+            env.put("OPENCLAW_CHANNELS", "telegram");
+
             pb.inheritIO();
-            pb.start().waitFor();
+            Process p = pb.start();
+            
+            // 额外监控：给 Telegram 模块一点启动缓冲时间
+            p.waitFor();
 
         } catch (Exception e) {
+            System.err.println("❌ 重装失败: " + e.getMessage());
             e.printStackTrace();
         }
     }
