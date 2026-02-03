@@ -4,42 +4,32 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🛠️ [OpenClaw] 尝试使用 channels init 强行激活...");
+        System.out.println("🤖 [OpenClaw] 切换至官方容器化一键修复启动模式...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
 
-            Map<String, String> envVars = new HashMap<>();
-            envVars.put("HOME", baseDir);
-            envVars.put("OPENCLAW_GATEWAY_TOKEN", "openclaw_secure_gateway_2026_safe");
+            // 1. 设置执行环境
+            ProcessBuilder pb = new ProcessBuilder();
+            pb.directory(new File(openclawDir));
+            pb.environment().put("HOME", baseDir);
+            // 务必使用这个 Token 绕过审计警告
+            pb.environment().put("OPENCLAW_GATEWAY_TOKEN", "openclaw_secure_gateway_2026_safe");
+            pb.inheritIO();
 
-            // 1. 启动网关
-            ProcessBuilder gatewayPb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
-            gatewayPb.directory(new File(openclawDir));
-            gatewayPb.environment().putAll(envVars);
-            gatewayPb.inheritIO();
-            Process gatewayProcess = gatewayPb.start();
+            // 2. 核心步骤：执行系统修复 (此命令会根据 openclaw.json 自动初始化 Telegram)
+            System.out.println("🩺 执行系统自动修复与频道激活...");
+            pb.command(nodePath, "dist/index.js", "system", "repair", "--force");
+            pb.start().waitFor();
 
-            // 2. 关键：使用 init 而不是 onboard
-            // init 命令会读取 openclaw.json 里的 telegram 配置并强制注入到运行态
-            Thread.sleep(8000); 
-            System.out.println("📡 正在初始化 Telegram 频道...");
-            ProcessBuilder initPb = new ProcessBuilder(nodePath, "dist/index.js", "channels", "init", "telegram");
-            initPb.directory(new File(openclawDir));
-            initPb.environment().putAll(envVars);
-            initPb.inheritIO();
-            initPb.start().waitFor();
+            // 3. 正式拉起网关
+            System.out.println("🚀 网关点火...");
+            pb.command(nodePath, "dist/index.js", "gateway");
+            pb.start().waitFor();
 
-            // 3. 打印最终状态确认
-            new ProcessBuilder(nodePath, "dist/index.js", "status")
-                .directory(new File(openclawDir))
-                .environment().putAll(envVars)
-                .inheritIO()
-                .start().waitFor();
-
-            gatewayProcess.waitFor();
         } catch (Exception e) {
+            System.err.println("❌ 启动失败: " + e.getMessage());
             e.printStackTrace();
         }
     }
