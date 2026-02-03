@@ -6,55 +6,41 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🔨 [OpenClaw] 启动官方原位重装修复程序...");
+        System.out.println("🔨 [OpenClaw] 正在执行针对性的网关修复...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
+            // 你的 Telegram Token 是对的，直接用
             String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
-            // 1. 物理粉碎旧配置
+            // 1. 清理并初始化
             deleteDirectory(new File(baseDir, ".openclaw"));
-            System.out.println("🧹 残留配置已物理粉碎。");
+            System.out.println("🧹 已清空配置，重新构建环境...");
 
-            // 2. 运行官方 Doctor 命令进行环境初始化 (不再手动写 JSON)
-            System.out.println("🔧 正在通过 Doctor 初始化环境...");
-            runCmd(nodePath, openclawDir, "doctor", "--fix");
-
-            // 3. 官方 onboard 命令 (静默模式)，强制它生成结构
-            System.out.println("📦 正在强制执行官方 Onboarding...");
-            runCmd(nodePath, openclawDir, "onboard", "--skip-skills", "--skip-health", "--skip-ui", "--confirm");
-
-            // 4. 使用官方 config 命令设置模型 (这能保证写在它认的那个 key 下)
-            System.out.println("🧠 正在配置 Gemini 模型...");
-            runCmd(nodePath, openclawDir, "config", "set", "model", "google/gemini-2.0-flash");
-
-            // 5. 注册 Telegram
-            System.out.println("🤖 正在激活 Telegram 频道...");
-            runCmd(nodePath, openclawDir, "channels", "add", "telegram", "--token", botToken);
-
-            // 6. 最终拉起网关
-            System.out.println("🚀 尝试全功能点火...");
+            // 2. 核心：通过环境变量直接喂给它网关 Token
             ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
             pb.directory(new File(openclawDir));
-            pb.environment().put("HOME", baseDir);
+            
+            Map<String, String> env = pb.environment();
+            env.put("HOME", baseDir);
+            
+            // --- 解决报错的关键：设置网关本身的密码 ---
+            env.put("OPENCLAW_GATEWAY_TOKEN", "123456789"); 
+            // --------------------------------------
+
+            // 3. 同时把 Telegram 的信息也通过环境变量塞进去，防止 JSON 解析失败
+            env.put("TELEGRAM_BOT_TOKEN", botToken);
+            env.put("OPENCLAW_CHANNELS", "telegram");
+            env.put("AGENT_MODEL", "google/gemini-2.0-flash");
+
+            System.out.println("🚀 正在强行挂载环境变量并启动...");
             pb.inheritIO();
             pb.start().waitFor();
 
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
-
-    private static void runCmd(String node, String dir, String... args) throws Exception {
-        List<String> cmd = new ArrayList<>();
-        cmd.add(node);
-        cmd.add("dist/index.js");
-        cmd.addAll(Arrays.asList(args));
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.directory(new File(dir));
-        pb.environment().put("HOME", "/home/container");
-        pb.start().waitFor();
     }
 
     private static void deleteDirectory(File dir) {
