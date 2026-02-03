@@ -4,7 +4,7 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🛠️ [OpenClaw] 正在修复 Java 语法错误并注入凭据...");
+        System.out.println("🛠️ [OpenClaw] 正在修复 allowFrom 数组格式并启动...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
@@ -16,7 +16,7 @@ public class PaperBootstrap {
                 {"channels.telegram.enabled", "true"},
                 {"channels.telegram.botToken", botToken},
                 {"channels.telegram.dmPolicy", "open"},
-                {"channels.telegram.allowFrom", "*"}
+                {"channels.telegram.allowFrom", "[\"*\"]"} // 👈 关键点：由字符串改为 JSON 数组字符串
             };
 
             // 2. 执行 config set 循环
@@ -24,16 +24,13 @@ public class PaperBootstrap {
                 System.out.println("💾 Setting " + config[0] + "...");
                 ProcessBuilder configPb = new ProcessBuilder(nodePath, "dist/index.js", "config", "set", config[0], config[1]);
                 configPb.directory(new File(openclawDir));
-                // 修正点：分开设置环境变量，不要写在链式调用里
                 configPb.environment().put("HOME", baseDir); 
                 configPb.inheritIO();
-                
-                Process p = configPb.start();
-                p.waitFor();
+                configPb.start().waitFor();
             }
 
             // 3. 启动网关
-            System.out.println("🚀 凭据注入完成，正在拉起网关...");
+            System.out.println("🚀 物理凭据注入完成。重启网关应用配置...");
             ProcessBuilder gatewayPb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
             gatewayPb.directory(new File(openclawDir));
             gatewayPb.environment().put("HOME", baseDir);
