@@ -1,35 +1,51 @@
 package io.papermc.paper;
 import java.io.*;
+import java.nio.file.*;
 import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🤖 [OpenClaw] 切换至官方容器化一键修复启动模式...");
+        System.out.println("🔧 [OpenClaw] 执行官方审计修复方案...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
+            String configDir = baseDir + "/.openclaw";
+            
+            // 1. 准备物理配置文件 (确保格式符合 2026 schema)
+            File dir = new File(configDir);
+            if (!dir.exists()) dir.mkdirs();
 
-            // 1. 设置执行环境
-            ProcessBuilder pb = new ProcessBuilder();
+            String json = "{\n" +
+                "  \"gateway\": { \"auth\": { \"token\": \"secure_token_long_enough_2026\" } },\n" +
+                "  \"channels\": {\n" +
+                "    \"telegram\": {\n" +
+                "      \"enabled\": true,\n" +
+                "      \"botToken\": \"8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM\",\n" +
+                "      \"dmPolicy\": \"open\",\n" +
+                "      \"allowFrom\": [\"*\"]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+            Files.write(Paths.get(configDir + "/openclaw.json"), json.getBytes());
+
+            // 2. 核心：物理修复审计中提到的权限问题 
+            // 这行命令能解决 "Credentials dir is readable by others" 的警告 
+            System.out.println("🔐 修复权限: chmod 700 " + configDir);
+            new ProcessBuilder("chmod", "-R", "700", configDir).start().waitFor();
+
+            // 3. 启动网关 (使用标准分步赋值，避免 GitHub Action 变红)
+            ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
             pb.directory(new File(openclawDir));
-            pb.environment().put("HOME", baseDir);
-            // 务必使用这个 Token 绕过审计警告
-            pb.environment().put("OPENCLAW_GATEWAY_TOKEN", "openclaw_secure_gateway_2026_safe");
+            
+            Map<String, String> env = pb.environment();
+            env.put("HOME", baseDir);
+            env.put("OPENCLAW_GATEWAY_TOKEN", "secure_token_long_enough_2026");
+            
             pb.inheritIO();
-
-            // 2. 核心步骤：执行系统修复 (此命令会根据 openclaw.json 自动初始化 Telegram)
-            System.out.println("🩺 执行系统自动修复与频道激活...");
-            pb.command(nodePath, "dist/index.js", "system", "repair", "--force");
-            pb.start().waitFor();
-
-            // 3. 正式拉起网关
-            System.out.println("🚀 网关点火...");
-            pb.command(nodePath, "dist/index.js", "gateway");
             pb.start().waitFor();
 
         } catch (Exception e) {
-            System.err.println("❌ 启动失败: " + e.getMessage());
             e.printStackTrace();
         }
     }
