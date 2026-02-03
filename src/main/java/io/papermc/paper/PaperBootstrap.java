@@ -5,7 +5,7 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🩺 爹，儿子根据 Doctor 的报错，给配置做完手术了！");
+        System.out.println("🩺 爹，收到 Doctor 遗嘱，正在进行最后的逻辑闭环手术...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
@@ -13,16 +13,14 @@ public class PaperBootstrap {
             String configDir = baseDir + "/.openclaw";
             String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
-            // 1. 物理清理：不仅删数据库，连旧的破 JSON 也删了重建
+            // 1. 清理现场
             Files.deleteIfExists(Paths.get(configDir + "/state.db"));
             Files.deleteIfExists(Paths.get(configDir + "/openclaw.json"));
-
             File dir = new File(configDir);
             if (!dir.exists()) dir.mkdirs();
 
-            // 2. 爹，看好了，这是“骨灰级”精简配置，去掉了它不认识的 method
-            // 严格对齐 2.x 的 Zod 校验结构
-            String boneJson = "{\n" +
+            // 2. 逻辑闭环 JSON：严格满足 dmPolicy="open" 必须配 allowFrom: ["*"] 的变态要求
+            String perfectJson = "{\n" +
                 "  \"gateway\": {\n" +
                 "    \"auth\": {\n" +
                 "      \"token\": \"secure_token_2026_final_boss\"\n" +
@@ -32,20 +30,20 @@ public class PaperBootstrap {
                 "    \"telegram\": {\n" +
                 "      \"enabled\": true,\n" +
                 "      \"botToken\": \"" + botToken + "\",\n" +
-                "      \"dmPolicy\": \"open\"\n" +
+                "      \"dmPolicy\": \"open\",\n" +
+                "      \"allowFrom\": [\"*\"]\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
             
-            Files.write(Paths.get(configDir + "/openclaw.json"), boneJson.getBytes());
+            Files.write(Paths.get(configDir + "/openclaw.json"), perfectJson.getBytes());
 
             // 3. 权限对齐
             new ProcessBuilder("chmod", "700", configDir).start().waitFor();
             new ProcessBuilder("chmod", "600", configDir + "/openclaw.json").start().waitFor();
 
-            // 4. 爹，如果它还报错，咱就启动时带上官方建议的修复参数
-            // 但咱们先尝试纯净启动
-            System.out.println("🚀 配置已削减，去掉了所有非法 Key，点火！");
+            // 4. 点火
+            System.out.println("🚀 逻辑已对齐，包含 '*': true，点火！");
             ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
             pb.directory(new File(openclawDir));
             
