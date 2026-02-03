@@ -6,50 +6,43 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🔨 [OpenClaw] 正在执行针对性的网关修复...");
+        System.out.println("⚡ [OpenClaw] 正在执行全模块强制唤醒...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
-            // 你的 Telegram Token 是对的，直接用
             String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
-            // 1. 清理并初始化
-            deleteDirectory(new File(baseDir, ".openclaw"));
-            System.out.println("🧹 已清空配置，重新构建环境...");
-
-            // 2. 核心：通过环境变量直接喂给它网关 Token
-            ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
+            // 1. 启动网关进程
+            ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway", "--token", "123456789");
             pb.directory(new File(openclawDir));
-            
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
-            
-            // --- 解决报错的关键：设置网关本身的密码 ---
-            env.put("OPENCLAW_GATEWAY_TOKEN", "123456789"); 
-            // --------------------------------------
-
-            // 3. 同时把 Telegram 的信息也通过环境变量塞进去，防止 JSON 解析失败
             env.put("TELEGRAM_BOT_TOKEN", botToken);
             env.put("OPENCLAW_CHANNELS", "telegram");
-            env.put("AGENT_MODEL", "google/gemini-2.0-flash");
-
-            System.out.println("🚀 正在强行挂载环境变量并启动...");
+            
             pb.inheritIO();
-            pb.start().waitFor();
+            Process gatewayProcess = pb.start();
+
+            // 2. 【核心唤醒】等待 5 秒网关稳定后，强制推送连接指令
+            new Thread(() -> {
+                try {
+                    Thread.sleep(5000); 
+                    System.out.println("🔔 正在发送强制连接指令到 Telegram...");
+                    ProcessBuilder wakePb = new ProcessBuilder(nodePath, "dist/index.js", "channels", "connect", "telegram", "--token", botToken);
+                    wakePb.directory(new File(openclawDir));
+                    wakePb.environment().put("HOME", baseDir);
+                    wakePb.start().waitFor();
+                    System.out.println("✅ 唤醒指令已发出，请检查 Telegram！");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }).start();
+
+            gatewayProcess.waitFor();
 
         } catch (Exception e) {
             e.printStackTrace();
-        }
-    }
-
-    private static void deleteDirectory(File dir) {
-        if (dir.exists()) {
-            File[] files = dir.listFiles();
-            if (files != null) {
-                for (File f : files) deleteDirectory(f);
-            }
-            dir.delete();
         }
     }
 }
