@@ -15,19 +15,20 @@ public class PaperBootstrap {
         String serverPort = "30196"; 
 
         try {
-            System.out.println("🩺 [物理参数强点火] 正在强制覆盖 Host 绑定...");
+            System.out.println("🩺 [JSON 降维打击] 正在尝试通过物理修改 bind 属性解锁 0.0.0.0...");
 
-            // 1. 保持无菌 JSON
             Files.deleteIfExists(Paths.get(configDir + "/state.db"));
             Files.deleteIfExists(Paths.get(jsonPath));
             new File(configDir).mkdirs();
 
+            // 构造极其严格的 JSON
+            // 重点：尝试将 bind 直接设为 "0.0.0.0"
             String configJson = "{"
                 + "\"meta\":{\"lastTouchedVersion\":\"2026.2.1\"},"
                 + "\"gateway\":{"
                     + "\"port\":" + serverPort + ","
                     + "\"mode\":\"local\","
-                    + "\"bind\":\"custom\"," // 必须是 custom
+                    + "\"bind\":\"0.0.0.0\"," // 尝试直接注入 0.0.0.0
                     + "\"auth\":{\"mode\":\"token\",\"token\":\"" + gatewayToken + "\"}"
                 + "},"
                 + "\"plugins\":{"
@@ -38,14 +39,12 @@ public class PaperBootstrap {
             + "}";
             Files.write(Paths.get(jsonPath), configJson.getBytes());
 
-            // 2. 【核心改动】直接在 CLI 参数里强插 --host
-            // 2026.2.1 的 gateway 命令通常支持显式的 --host 参数
+            // 启动指令：去掉那个让它报错的 --host
             ProcessBuilder pb = new ProcessBuilder(
                 baseDir + "/node-v22.12.0-linux-x64/bin/node",
                 "dist/index.js", 
                 "gateway", 
-                "--port", serverPort, 
-                "--host", "0.0.0.0", // <--- 物理强插
+                "--port", serverPort,
                 "--force"
             );
             
@@ -55,16 +54,11 @@ public class PaperBootstrap {
             env.put("HOME", baseDir);
             env.put("NODE_ENV", "production");
             
-            // 备选方案：尝试 2026 版可能采用的所有 Host 变量名
-            env.put("HOST", "0.0.0.0");
-            env.put("GATEWAY_HOST", "0.0.0.0");
-            env.put("OPENCLAW_GATEWAY_HOST", "0.0.0.0");
-            env.put("OPENCLAW_BIND", "0.0.0.0");
-            
-            // Telegram Token 继续走环境注入
+            // 最后的挣扎：环境变量注入 Token
             env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
+            env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
 
-            System.out.println("🚀 执行指令: " + String.join(" ", pb.command()));
+            System.out.println("🚀 配置文件已就绪，正在点火...");
             
             pb.inheritIO();
             pb.start().waitFor();
