@@ -5,14 +5,14 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🎯 [OpenClaw] 发现 dmPolicy 校验细节，正在进行最后修正...");
+        System.out.println("🛠️ [OpenClaw] 正在补全 allowFrom 通配符，满足 open 策略要求...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
             String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
-            // 修正：将 dmPolicy 改为 "open"
+            // 修正：添加 allowFrom: ["*"]
             String finalJson = "{\n" +
                 "  \"gateway\": {\n" +
                 "    \"auth\": { \"token\": \"123456789\" },\n" +
@@ -29,7 +29,8 @@ public class PaperBootstrap {
                 "    \"telegram\": {\n" +
                 "      \"enabled\": true,\n" +
                 "      \"botToken\": \"" + botToken + "\",\n" +
-                "      \"dmPolicy\": \"open\"\n" + // 👈 这里改成了 "open"
+                "      \"dmPolicy\": \"open\",\n" + 
+                "      \"allowFrom\": [\"*\"]\n" + // 👈 按照报错要求，加上这个通配符
                 "    }\n" +
                 "  }\n" +
                 "}";
@@ -43,7 +44,7 @@ public class PaperBootstrap {
             pb.environment().put("HOME", baseDir);
             pb.environment().put("OPENCLAW_GATEWAY_TOKEN", "123456789");
 
-            System.out.println("✅ 校验规则已对齐。正在尝试启动...");
+            System.out.println("🚀 规则已补全。这次应该能看到网关成功启动的消息了！");
             pb.inheritIO();
             pb.start().waitFor();
         } catch (Exception e) {
