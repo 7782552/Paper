@@ -15,7 +15,7 @@ public class PaperBootstrap {
         String publicHost = "node.zenix.sg";
 
         try {
-            System.out.println("⚡ [焊死模式] 正在物理强制 WebSocket 链路...");
+            System.out.println("🛡️ [破盾模式 23.0] 正在强制适配 Cloudflare 加密链路...");
 
             new ProcessBuilder("pkill", "-9", "node").start().waitFor();
 
@@ -24,7 +24,7 @@ public class PaperBootstrap {
             String configJson = "{\"meta\":{\"lastTouchedVersion\":\"2026.2.1\"},\"gateway\":{\"port\":" + internalPort + ",\"mode\":\"local\",\"bind\":\"loopback\"},\"plugins\":{\"enabled\":true}}";
             Files.write(Paths.get(baseDir + "/.openclaw/openclaw.json"), configJson.getBytes());
 
-            // 1. 隧道保持
+            // 1. 物理隧道保持
             new Thread(() -> {
                 try (ServerSocket ss = new ServerSocket(publicPort, 128, InetAddress.getByName("0.0.0.0"))) {
                     while (true) {
@@ -38,7 +38,7 @@ public class PaperBootstrap {
                 } catch (Exception e) {}
             }).start();
 
-            // 2. 启动 Node：注入最高优先级的 WS 变量
+            // 2. 启动 Node：核心改动 wss:// 和 https://
             ProcessBuilder pb = new ProcessBuilder(
                 baseDir + "/node-v22.12.0-linux-x64/bin/node",
                 "dist/index.js", "gateway", 
@@ -51,22 +51,21 @@ public class PaperBootstrap {
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
             
-            // --- 这里是关键：强制前端去连公网 ---
+            // --- 核心修复：Cloudflare 节点必须使用 WSS 协议 ---
             env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
-            env.put("OPENCLAW_WS_URL", "ws://" + publicHost + ":" + publicPort); 
-            env.put("OPENCLAW_PUBLIC_URL", "http://" + publicHost + ":" + publicPort);
-            // 2026 特供变量：告诉它网关的真实公网身份
-            env.put("OPENCLAW_GATEWAY_WS_URL", "ws://" + publicHost + ":" + publicPort);
+            env.put("OPENCLAW_WS_URL", "wss://" + publicHost + ":" + publicPort); 
+            env.put("OPENCLAW_PUBLIC_URL", "https://" + publicHost + ":" + publicPort);
+            env.put("OPENCLAW_GATEWAY_WS_URL", "wss://" + publicHost + ":" + publicPort);
 
             pb.inheritIO();
             Process p = pb.start();
 
-            // 3. 自动审批注入 (暴力注入)
+            // 3. 自动审批注入
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(p.getOutputStream()));
             new Thread(() -> {
                 try {
                     while (p.isAlive()) {
-                        Thread.sleep(8000); // 缩短间隔
+                        Thread.sleep(8000);
                         writer.write("pairing approve telegram all\n");
                         writer.flush();
                     }
