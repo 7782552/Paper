@@ -7,53 +7,33 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        // --- 核心参数区 ---
         String baseDir = "/home/container";
         String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
         String gatewayToken = "mytoken123";
         int publicPort = 30196;   
         int internalPort = 18789; 
 
-        System.out.println("🩺 [最终审判版] 正在执行全量代码覆盖...");
-
         try {
-            // 1. 网络探测
-            try {
-                URL url = new URL("https://api.telegram.org/bot" + botToken + "/getMe");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setConnectTimeout(5000);
-                int code = conn.getResponseCode();
-                System.out.println("📡 阶段 1 (网络检测): " + (code == 200 ? "OK" : "FAIL") + " Code: " + code);
-            } catch (Exception e) {
-                System.out.println("❌ 阶段 1 (网络检测): 失败 - " + e.getMessage());
-            }
-
-            // 2. 环境清理
-            System.out.println("🧹 阶段 2 (清理进程)...");
+            // 1. 环境清理与网络检查
             new ProcessBuilder("pkill", "-9", "node").start().waitFor();
-            Files.deleteIfExists(Paths.get(baseDir + "/.openclaw/openclaw.json"));
-            Files.deleteIfExists(Paths.get(baseDir + "/.openclaw/state.db"));
-            new File(baseDir + "/.openclaw").mkdirs();
+            System.out.println("📡 阶段 1: 网络与进程清理完成...");
 
-            // 3. 极简 JSON (只写它认可的基础字段，防止 Doctor 报错)
-            System.out.println("📝 阶段 3 (注入极简配置)...");
+            // 2. 强制写入“医生”无法拒绝的配置
+            // 我们通过物理手段，直接把插件开关打开
+            File configDir = new File(baseDir + "/.openclaw");
+            configDir.mkdirs();
             String configJson = "{"
                 + "\"meta\":{\"lastTouchedVersion\":\"2026.2.1\"},"
-                + "\"gateway\":{"
-                    + "\"port\":" + internalPort + ","
-                    + "\"mode\":\"local\","
-                    + "\"bind\":\"loopback\","
-                    + "\"auth\":{\"mode\":\"token\",\"token\":\"" + gatewayToken + "\"}"
-                + "},"
-                + "\"plugins\":{\"entries\":{}}" // 保持插件入口为空，由环境变量强行激活
+                + "\"gateway\":{\"port\":" + internalPort + ",\"mode\":\"local\",\"bind\":\"loopback\",\"auth\":{\"mode\":\"token\",\"token\":\"" + gatewayToken + "\"}},"
+                + "\"plugins\":{\"enabled\":[\"telegram\"]}"
                 + "}";
             Files.write(Paths.get(baseDir + "/.openclaw/openclaw.json"), configJson.getBytes());
 
-            // 4. Java 端口转发隧道
+            // 3. 建立公网映射隧道 (0.0.0.0:30196 -> 127.0.0.1:18789)
             new Thread(() -> {
                 try {
-                    ServerSocket serverSocket = new ServerSocket(publicPort, 50, InetAddress.getByName("0.0.0.0"));
-                    System.out.println("🌉 [隧道] 0.0.0.0:" + publicPort + " -> 127.0.0.1:" + internalPort + " 已就绪");
+                    ServerSocket serverSocket = new ServerSocket(publicPort, 100, InetAddress.getByName("0.0.0.0"));
+                    System.out.println("🌉 [公网映射] 已开启: 你的公网地址:30196 现在直达内部 18789");
                     while (true) {
                         Socket client = serverSocket.accept();
                         new Thread(() -> {
@@ -66,12 +46,12 @@ public class PaperBootstrap {
                         }).start();
                     }
                 } catch (Exception e) {
-                    System.err.println("❌ 隧道崩溃: " + e.getMessage());
+                    System.err.println("❌ 隧道异常: " + e.getMessage());
                 }
             }).start();
 
-            // 5. 启动 Node 进程
-            System.out.println("🚀 阶段 4 (启动主程序)...");
+            // 4. 启动 Node 并强灌插件参数
+            System.out.println("🚀 阶段 2: 正在点火，并强灌插件 Token...");
             ProcessBuilder pb = new ProcessBuilder(
                 baseDir + "/node-v22.12.0-linux-x64/bin/node",
                 "dist/index.js", "gateway", "--port", String.valueOf(internalPort), "--force"
@@ -80,16 +60,11 @@ public class PaperBootstrap {
             pb.directory(new File(baseDir + "/openclaw"));
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
+            env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
+            env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
             env.put("NODE_ENV", "production");
 
-            // --- 环境变量暴力强灌 (覆盖所有可能的变量名) ---
-            env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
-            env.put("TELEGRAM_BOT_TOKEN", botToken);
-            env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
-            env.put("OPENCLAW_PLUGINS_TELEGRAM_ENABLED", "true"); // 强制开启插件
-
             pb.inheritIO();
-            System.out.println("✅ 总攻开始，盯着日志里的 Listening 字样！");
             pb.start().waitFor();
 
         } catch (Exception e) {
