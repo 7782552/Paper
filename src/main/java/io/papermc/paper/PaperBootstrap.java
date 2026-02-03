@@ -10,27 +10,24 @@ public class PaperBootstrap {
         String configDir = baseDir + "/.openclaw";
         String jsonPath = configDir + "/openclaw.json";
         
-        // --- 核心配置 ---
         String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
         String gatewayToken = "mytoken123";
         String serverPort = "30196"; 
 
         try {
-            System.out.println("🩺 [无菌注入模式] 正在剥离 JSON 配置，改用环境变量注入...");
+            System.out.println("🩺 [物理参数强点火] 正在强制覆盖 Host 绑定...");
 
-            // 1. 物理清场
+            // 1. 保持无菌 JSON
             Files.deleteIfExists(Paths.get(configDir + "/state.db"));
             Files.deleteIfExists(Paths.get(jsonPath));
             new File(configDir).mkdirs();
 
-            // 2. 构造“无菌”JSON：只开启开关，不放任何参数
-            // 这样 Doctor 绝对无法报错，因为这完全符合它的 Schema
             String configJson = "{"
                 + "\"meta\":{\"lastTouchedVersion\":\"2026.2.1\"},"
                 + "\"gateway\":{"
                     + "\"port\":" + serverPort + ","
                     + "\"mode\":\"local\","
-                    + "\"bind\":\"custom\"," 
+                    + "\"bind\":\"custom\"," // 必须是 custom
                     + "\"auth\":{\"mode\":\"token\",\"token\":\"" + gatewayToken + "\"}"
                 + "},"
                 + "\"plugins\":{"
@@ -39,33 +36,35 @@ public class PaperBootstrap {
                     + "}"
                 + "}"
             + "}";
-            
             Files.write(Paths.get(jsonPath), configJson.getBytes());
 
-            // 3. 启动进程：把所有参数通过环境变量“空降”进去
+            // 2. 【核心改动】直接在 CLI 参数里强插 --host
+            // 2026.2.1 的 gateway 命令通常支持显式的 --host 参数
             ProcessBuilder pb = new ProcessBuilder(
                 baseDir + "/node-v22.12.0-linux-x64/bin/node",
-                "dist/index.js", "gateway", "--port", serverPort, "--force"
+                "dist/index.js", 
+                "gateway", 
+                "--port", serverPort, 
+                "--host", "0.0.0.0", // <--- 物理强插
+                "--force"
             );
             
             pb.directory(new File(baseDir + "/openclaw"));
             Map<String, String> env = pb.environment();
             
-            // 基础环境
             env.put("HOME", baseDir);
             env.put("NODE_ENV", "production");
             
-            // 穿透配置
-            env.put("OPENCLAW_HOST", "0.0.0.0");
-            env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
+            // 备选方案：尝试 2026 版可能采用的所有 Host 变量名
+            env.put("HOST", "0.0.0.0");
+            env.put("GATEWAY_HOST", "0.0.0.0");
+            env.put("OPENCLAW_GATEWAY_HOST", "0.0.0.0");
+            env.put("OPENCLAW_BIND", "0.0.0.0");
             
-            // --- 核心：通过环境变量注入 Telegram 参数，绕过 JSON 校验 ---
+            // Telegram Token 继续走环境注入
             env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
-            env.put("OPENCLAW_TELEGRAM_DM_POLICY", "open");
-            env.put("OPENCLAW_TELEGRAM_ALLOW_FROM", "*");
-            env.put("OPENCLAW_TELEGRAM_SESSION_ACTIVE", "true");
 
-            System.out.println("🚀 环境变量注入完毕，正在绕过 Doctor 启动网关...");
+            System.out.println("🚀 执行指令: " + String.join(" ", pb.command()));
             
             pb.inheritIO();
             pb.start().waitFor();
