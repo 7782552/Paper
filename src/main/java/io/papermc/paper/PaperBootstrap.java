@@ -6,54 +6,47 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        // --- 核心配置区 ---
         String baseDir = "/home/container";
         String configDir = baseDir + "/.openclaw";
         String jsonPath = configDir + "/openclaw.json";
         String dbPath = configDir + "/state.db";
         
-        // 请确保以下 Token 正确
+        // 核心凭据
         String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
         String gatewayToken = "secure_token_2026";
 
         try {
-            System.out.println("🩺 收到 Doctor 遗嘱，正在进行最后的逻辑闭环手术...");
+            System.out.println("🩺 收到 Doctor 遗嘱：启动 [极简无菌模式] 手术...");
 
-            // 1. 物理粉碎：删除 state.db (2026.2.1 启动崩溃头号杀手)
+            // 1. 彻底粉碎旧世界
             Files.deleteIfExists(Paths.get(dbPath));
             Files.deleteIfExists(Paths.get(jsonPath));
-            
-            File dir = new File(configDir);
-            if (!dir.exists()) dir.mkdirs();
+            new File(configDir).mkdirs();
 
-            // 2. 构造符合 2026.2.1 规范的无菌 JSON
-            // 注意：gateway 必须监听 0.0.0.0；allowFrom 必须包含 '*'
+            // 2. 逻辑闭环 JSON (根据报错：剔除 host, 剔除 polling)
+            // 严格遵循 2026.2.1 的 Schema：只允许存在的键
             String configJson = "{"
                 + "\"gateway\":{"
-                    + "\"host\":\"0.0.0.0\","
-                    + "\"port\":18789,"
-                    + "\"auth\":{\"token\":\"" + gatewayToken + "\"},"
-                    + "\"controlUi\":{\"allowInsecureAuth\":true}"
+                    + "\"auth\":{\"token\":\"" + gatewayToken + "\"}"
                 + "},"
                 + "\"channels\":{"
                     + "\"telegram\":{"
                         + "\"enabled\":true,"
                         + "\"botToken\":\"" + botToken + "\","
                         + "\"dmPolicy\":\"open\","
-                        + "\"allowFrom\":[\"*\"],"
-                        + "\"polling\":{\"enabled\":true}"
+                        + "\"allowFrom\":[\"*\"]"
                     + "}"
                 + "}"
             + "}";
             
             Files.write(Paths.get(jsonPath), configJson.getBytes());
-            System.out.println("🚀 逻辑已对齐 [Host: 0.0.0.0, allowFrom: '*']，点火！");
+            System.out.println("🚀 极简配置已注入，剔除所有非法 Key，点火！");
 
-            // 3. 物理权限强锁 (700/600)
+            // 3. 强制权限锁死 (Pterodactyl 环境生存必备)
             runCommand("chmod", "700", configDir);
             runCommand("chmod", "600", jsonPath);
 
-            // 4. 构建进程：注入环境变量
+            // 4. 启动进程：将无法在 JSON 中配置的参数全部转入环境变量
             ProcessBuilder pb = new ProcessBuilder(
                 baseDir + "/node-v22.12.0-linux-x64/bin/node", 
                 "dist/index.js", 
@@ -64,19 +57,20 @@ public class PaperBootstrap {
             
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
-            // 2026.2.1 鉴权全家桶，确保 CLI 和 Service 都能识别
+            
+            // 环境变量注入核心参数 (避开 JSON Schema 校验)
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
-            env.put("OPENCLAW_GATEWAY_KEY", gatewayToken); 
+            env.put("OPENCLAW_GATEWAY_KEY", gatewayToken);
+            env.put("OPENCLAW_GATEWAY_HOST", "0.0.0.0"); // 尝试通过环境变量强制监听
+            env.put("OPENCLAW_GATEWAY_PORT", "18789");
             env.put("NODE_ENV", "production");
 
             pb.inheritIO();
             Process process = pb.start();
-            
-            // 存活监控
             process.waitFor();
 
         } catch (Exception e) {
-            System.err.println("❌ 严重错误: " + e.getMessage());
+            System.err.println("❌ 严重崩溃: " + e.getMessage());
             e.printStackTrace();
         }
     }
