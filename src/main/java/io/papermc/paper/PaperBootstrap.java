@@ -15,36 +15,30 @@ public class PaperBootstrap {
         String publicHost = "node.zenix.sg";
 
         try {
-            System.out.println("🛠️ [Bridge 专项修复] 正在重构链路...");
+            System.out.println("⚡ [焊死模式] 正在物理强制 WebSocket 链路...");
 
-            // 1. 清理残留
             new ProcessBuilder("pkill", "-9", "node").start().waitFor();
 
-            // 2. 写入 OpenClaw 唯一认可的极简 JSON
             File configDir = new File(baseDir + "/.openclaw");
             if (!configDir.exists()) configDir.mkdirs();
             String configJson = "{\"meta\":{\"lastTouchedVersion\":\"2026.2.1\"},\"gateway\":{\"port\":" + internalPort + ",\"mode\":\"local\",\"bind\":\"loopback\"},\"plugins\":{\"enabled\":true}}";
             Files.write(Paths.get(baseDir + "/.openclaw/openclaw.json"), configJson.getBytes());
 
-            // 3. 物理隧道 (确保网页能再次打开)
+            // 1. 隧道保持
             new Thread(() -> {
                 try (ServerSocket ss = new ServerSocket(publicPort, 128, InetAddress.getByName("0.0.0.0"))) {
                     while (true) {
                         Socket c = ss.accept();
                         new Thread(() -> {
                             try (Socket t = new Socket("127.0.0.1", internalPort)) {
-                                c.setTcpNoDelay(true); t.setTcpNoDelay(true);
-                                Thread t1 = new Thread(() -> pipe(c, t));
-                                Thread t2 = new Thread(() -> pipe(t, c));
-                                t1.start(); t2.start();
-                                t1.join(); t2.join();
+                                pipe(c, t); pipe(t, c);
                             } catch (Exception ignored) {}
                         }).start();
                     }
                 } catch (Exception e) {}
             }).start();
 
-            // 4. 启动 Node：关键在于修复 WebSocket 握手地址
+            // 2. 启动 Node：注入最高优先级的 WS 变量
             ProcessBuilder pb = new ProcessBuilder(
                 baseDir + "/node-v22.12.0-linux-x64/bin/node",
                 "dist/index.js", "gateway", 
@@ -57,20 +51,22 @@ public class PaperBootstrap {
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
             
-            // --- 核心修复：强制前端网页去连公网端口，而不是内网端口 ---
+            // --- 这里是关键：强制前端去连公网 ---
             env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
             env.put("OPENCLAW_WS_URL", "ws://" + publicHost + ":" + publicPort); 
             env.put("OPENCLAW_PUBLIC_URL", "http://" + publicHost + ":" + publicPort);
+            // 2026 特供变量：告诉它网关的真实公网身份
+            env.put("OPENCLAW_GATEWAY_WS_URL", "ws://" + publicHost + ":" + publicPort);
 
             pb.inheritIO();
             Process p = pb.start();
 
-            // 5. 暴力自动审批
+            // 3. 自动审批注入 (暴力注入)
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(p.getOutputStream()));
             new Thread(() -> {
                 try {
                     while (p.isAlive()) {
-                        Thread.sleep(10000);
+                        Thread.sleep(8000); // 缩短间隔
                         writer.write("pairing approve telegram all\n");
                         writer.flush();
                     }
@@ -84,10 +80,12 @@ public class PaperBootstrap {
     }
 
     private static void pipe(Socket f, Socket t) {
-        try (InputStream is = f.getInputStream(); OutputStream os = t.getOutputStream()) {
-            byte[] b = new byte[65536];
-            int l;
-            while ((l = is.read(b)) != -1) { os.write(b, 0, l); os.flush(); }
-        } catch (Exception ignored) {}
+        new Thread(() -> {
+            try (InputStream is = f.getInputStream(); OutputStream os = t.getOutputStream()) {
+                byte[] b = new byte[65536];
+                int l;
+                while ((l = is.read(b)) != -1) { os.write(b, 0, l); os.flush(); }
+            } catch (Exception ignored) {}
+        }).start();
     }
 }
