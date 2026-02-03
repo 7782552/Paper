@@ -1,61 +1,81 @@
 package io.papermc.paper;
+
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🩺 爹，收到 Doctor 遗嘱，正在进行最后的逻辑闭环手术...");
-        try {
-            String baseDir = "/home/container";
-            String openclawDir = baseDir + "/openclaw";
-            String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
-            String configDir = baseDir + "/.openclaw";
-            String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
+        // --- 核心配置参数 ---
+        String baseDir = "/home/container";
+        String configDir = baseDir + "/.openclaw";
+        String jsonPath = configDir + "/openclaw.json";
+        String dbPath = configDir + "/state.db";
+        
+        // 建议从面板变量获取，或者在此硬编码
+        String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM"; 
+        String gatewayToken = "secure_token_2026";
 
-            // 1. 清理现场
-            Files.deleteIfExists(Paths.get(configDir + "/state.db"));
-            Files.deleteIfExists(Paths.get(configDir + "/openclaw.json"));
+        try {
+            System.out.println("🩺 收到 Doctor 遗嘱，正在进行最后的逻辑闭环手术...");
+
+            // 1. 物理清理：粉碎旧世界 (state.db 是 2026 版启动失败的头号元凶)
+            Files.deleteIfExists(Paths.get(dbPath));
+            Files.deleteIfExists(Paths.get(jsonPath));
+            
             File dir = new File(configDir);
             if (!dir.exists()) dir.mkdirs();
 
-            // 2. 逻辑闭环 JSON：严格满足 dmPolicy="open" 必须配 allowFrom: ["*"] 的变态要求
-            String perfectJson = "{\n" +
-                "  \"gateway\": {\n" +
-                "    \"auth\": {\n" +
-                "      \"token\": \"secure_token_2026_final_boss\"\n" +
-                "    }\n" +
-                "  },\n" +
-                "  \"channels\": {\n" +
-                "    \"telegram\": {\n" +
-                "      \"enabled\": true,\n" +
-                "      \"botToken\": \"" + botToken + "\",\n" +
-                "      \"dmPolicy\": \"open\",\n" +
-                "      \"allowFrom\": [\"*\"]\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+            // 2. 逻辑闭环 JSON (物理阉割 gateway.auth.method)
+            // 满足 dmPolicy="open" 必须配合 allowFrom=["*"] 的死逻辑
+            String configJson = "{"
+                + "\"gateway\":{\"auth\":{\"token\":\"" + gatewayToken + "\"}},"
+                + "\"channels\":{"
+                    + "\"telegram\":{"
+                        + "\"enabled\":true,"
+                        + "\"botToken\":\"" + botToken + "\","
+                        + "\"dmPolicy\":\"open\","
+                        + "\"allowFrom\":[\"*\"]"
+                    + "}"
+                + "}"
+            + "}";
             
-            Files.write(Paths.get(configDir + "/openclaw.json"), perfectJson.getBytes());
-
-            // 3. 权限对齐
-            new ProcessBuilder("chmod", "700", configDir).start().waitFor();
-            new ProcessBuilder("chmod", "600", configDir + "/openclaw.json").start().waitFor();
-
-            // 4. 点火
+            Files.write(Paths.get(jsonPath), configJson.getBytes());
             System.out.println("🚀 逻辑已对齐，包含 '*': true，点火！");
-            ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
-            pb.directory(new File(openclawDir));
+
+            // 3. 强制权限锁死 (在 Pterodactyl 修正权限前抢跑)
+            // 文件夹 700, JSON 600
+            runCommand("chmod", "700", configDir);
+            runCommand("chmod", "600", jsonPath);
+
+            // 4. 启动执行流
+            ProcessBuilder pb = new ProcessBuilder(
+                baseDir + "/node-v22.12.0-linux-x64/bin/node", 
+                "dist/index.js", 
+                "gateway"
+            );
             
+            pb.directory(new File(baseDir + "/openclaw"));
+            
+            // 注入环境变量：这是 2026 版最稳的鉴权方式
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
-            env.put("OPENCLAW_GATEWAY_TOKEN", "secure_token_2026_final_boss");
-            
+            env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
+            env.put("NODE_ENV", "production");
+
             pb.inheritIO();
-            pb.start().waitFor();
+            Process process = pb.start();
+            
+            // 守护进程
+            process.waitFor();
 
         } catch (Exception e) {
+            System.err.println("❌ 部署崩溃: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    private static void runCommand(String... args) throws Exception {
+        new ProcessBuilder(args).start().waitFor();
     }
 }
