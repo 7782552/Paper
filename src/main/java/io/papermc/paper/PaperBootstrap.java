@@ -4,40 +4,38 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🛠️ [OpenClaw] 正在修复 allowFrom 数组格式并启动...");
+        System.out.println("🛸 [OpenClaw] 配置已就绪，正在尝试联合启动模式...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
-            String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
-            // 1. 预设配置项
-            String[][] configs = {
-                {"channels.telegram.enabled", "true"},
-                {"channels.telegram.botToken", botToken},
-                {"channels.telegram.dmPolicy", "open"},
-                {"channels.telegram.allowFrom", "[\"*\"]"} // 👈 关键点：由字符串改为 JSON 数组字符串
-            };
+            // 1. 设置通用环境变量
+            Map<String, String> envVars = new HashMap<>();
+            envVars.put("HOME", baseDir);
+            envVars.put("OPENCLAW_GATEWAY_TOKEN", "123456789");
 
-            // 2. 执行 config set 循环
-            for (String[] config : configs) {
-                System.out.println("💾 Setting " + config[0] + "...");
-                ProcessBuilder configPb = new ProcessBuilder(nodePath, "dist/index.js", "config", "set", config[0], config[1]);
-                configPb.directory(new File(openclawDir));
-                configPb.environment().put("HOME", baseDir); 
-                configPb.inheritIO();
-                configPb.start().waitFor();
-            }
-
-            // 3. 启动网关
-            System.out.println("🚀 物理凭据注入完成。重启网关应用配置...");
+            // 2. 启动网关 (这次我们换一种方式，先让它在后台跑起来)
+            System.out.println("🛰️ 正在启动网关核心...");
             ProcessBuilder gatewayPb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
             gatewayPb.directory(new File(openclawDir));
-            gatewayPb.environment().put("HOME", baseDir);
-            gatewayPb.environment().put("OPENCLAW_GATEWAY_TOKEN", "123456789");
+            gatewayPb.environment().putAll(envVars);
             gatewayPb.inheritIO();
+            Process gatewayProcess = gatewayPb.start();
+
+            // ⚠️ 关键步骤：等待网关稳定后，发送“激活 Telegram”指令
+            Thread.sleep(5000); 
+            System.out.println("📡 正在向网关发送 Telegram 激活指令...");
             
-            gatewayPb.start().waitFor();
+            // 使用 message 指令强行触发频道初始化 (参考 LilysAI 指南中提到的 message 模块)
+            ProcessBuilder activatePb = new ProcessBuilder(nodePath, "dist/index.js", "channels", "connect", "telegram");
+            activatePb.directory(new File(openclawDir));
+            activatePb.environment().putAll(envVars);
+            activatePb.inheritIO();
+            activatePb.start().waitFor();
+
+            // 保持主进程运行
+            gatewayProcess.waitFor();
         } catch (Exception e) {
             e.printStackTrace();
         }
