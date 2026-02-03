@@ -4,33 +4,40 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🔥 [OpenClaw] 激活终极暴力连接模式...");
+        System.out.println("🛠️ [OpenClaw] 切换策略：使用 config set 注入凭据...");
         try {
             String baseDir = "/home/container";
             String openclawDir = baseDir + "/openclaw";
             String nodePath = baseDir + "/node-v22.12.0-linux-x64/bin/node";
             String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
-            // 1. 注入强制环境变量 (2026版关键：OPENCLAW_AUTO_CONNECT)
+            // 1. 注入环境变量 (确保基础认证通过)
             ProcessBuilder pb = new ProcessBuilder(nodePath, "dist/index.js", "gateway"); 
             pb.directory(new File(openclawDir));
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
-            env.put("TELEGRAM_BOT_TOKEN", botToken);
-            env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken); // 双重备份
             env.put("OPENCLAW_GATEWAY_TOKEN", "123456789");
-            env.put("OPENCLAW_AUTO_CONNECT", "telegram"); // 👈 强制自连 Telegram
 
-            // 2. 先执行一次显式的频道激活命令 (这一步是 LilysAI 指南里的灵魂)
-            System.out.println("🛰️ 正在预激活 Telegram 频道...");
-            new ProcessBuilder(nodePath, "dist/index.js", "channels", "login", "--channel", "telegram", "--token", botToken)
-                .directory(new File(openclawDir))
-                .inheritIO()
-                .start()
-                .waitFor();
+            // 2. 关键：通过 CLI 强行设置配置项 (参考 schema.js 的层级)
+            System.out.println("💾 正在写入 Telegram 凭据到本地数据库...");
+            String[] configCmds = {
+                "channels.telegram.enabled:true",
+                "channels.telegram.botToken:" + botToken,
+                "channels.telegram.dmPolicy:open"
+            };
 
-            // 3. 正式启动网关
-            System.out.println("🚀 网关启动中，请死盯着日志，寻找 [telegram] 关键字！");
+            for (String cmd : configCmds) {
+                String[] parts = cmd.split(":");
+                new ProcessBuilder(nodePath, "dist/index.js", "config", "set", parts[0], parts[1])
+                    .directory(new File(openclawDir))
+                    .environment().put("HOME", baseDir) // 必须带上 HOME 否则找不到路径
+                    .inheritIO()
+                    .start()
+                    .waitFor();
+            }
+
+            // 3. 启动网关
+            System.out.println("🚀 凭据已注入，网关正在起飞...");
             pb.inheritIO();
             pb.start().waitFor();
         } catch (Exception e) {
