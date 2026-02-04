@@ -9,39 +9,40 @@ public class PaperBootstrap {
         String baseDir = "/home/container";
         String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
         String gatewayToken = "mytoken123";
-        int port = 30196; 
+        
+        int publicPort = 30196;   // 外部进来的门
+        int internalPort = 18789; // Node 躲在后面的门
 
         try {
-            System.out.println("🌉 [物理折射模式] 正在建立公网 -> 127.0.0.1 的流量折射层...");
+            System.out.println("🌉 [物理折射 2.0] 修正端口冲突：30196 -> 18789");
 
-            // 1. 先清理所有 node 进程
+            // 1. 物理清场
             new ProcessBuilder("pkill", "-9", "node").start().waitFor();
 
-            // 2. 物理隧道线程：强制把外部流量导向内部
+            // 2. 流量搬运线程 (把 30196 的流量转给 18789)
             new Thread(() -> {
-                try (ServerSocket serverSocket = new ServerSocket(port, 100, InetAddress.getByName("0.0.0.0"))) {
+                try (ServerSocket ss = new ServerSocket(publicPort, 128, InetAddress.getByName("0.0.0.0"))) {
                     while (true) {
-                        Socket clientSocket = serverSocket.accept();
+                        Socket client = ss.accept();
                         new Thread(() -> {
-                            try (Socket internalSocket = new Socket("127.0.0.1", port)) {
-                                // 双向搬运数据
-                                Thread t1 = new Thread(() -> pipe(clientSocket, internalSocket));
-                                Thread t2 = new Thread(() -> pipe(internalSocket, clientSocket));
+                            try (Socket node = new Socket("127.0.0.1", internalPort)) {
+                                Thread t1 = new Thread(() -> pipe(client, node));
+                                Thread t2 = new Thread(() -> pipe(node, client));
                                 t1.start(); t2.start();
                                 t1.join(); t2.join();
                             } catch (Exception ignored) {}
                         }).start();
                     }
                 } catch (Exception e) {
-                    System.err.println("❌ 隧道崩溃，可能端口被抢占: " + e.getMessage());
+                    System.err.println("❌ 外部端口 30196 监听失败: " + e.getMessage());
                 }
             }).start();
 
-            // 3. 启动 Node：这次我们让它就在 127.0.0.1 跑，别去管 0.0.0.0 了
+            // 3. 启动 Node：监听 internalPort (18789)
             ProcessBuilder pb = new ProcessBuilder(
                 baseDir + "/node-v22.12.0-linux-x64/bin/node",
                 "dist/index.js", "gateway", 
-                "--port", String.valueOf(port),
+                "--port", String.valueOf(internalPort),
                 "--token", gatewayToken,
                 "--force"
             );
@@ -50,18 +51,17 @@ public class PaperBootstrap {
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
             env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
-            // 顺着它的脾气，只监听本地
-            env.put("OPENCLAW_GATEWAY_HOST", "127.0.0.1"); 
+            env.put("OPENCLAW_GATEWAY_HOST", "127.0.0.1"); // 锁死本地，不抢公网端口
 
             pb.inheritIO();
             Process p = pb.start();
 
-            // 4. 自动审批
+            // 4. 暴力审批
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(p.getOutputStream()));
             new Thread(() -> {
                 try {
                     while (p.isAlive()) {
-                        Thread.sleep(10000);
+                        Thread.sleep(15000);
                         writer.write("pairing approve telegram all\n");
                         writer.flush();
                     }
@@ -69,20 +69,14 @@ public class PaperBootstrap {
             }).start();
 
             p.waitFor();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
-    // 物理搬运字节流
-    private static void pipe(Socket from, Socket to) {
-        try (InputStream in = from.getInputStream(); OutputStream out = to.getOutputStream()) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-                out.flush();
-            }
+    private static void pipe(Socket f, Socket t) {
+        try (InputStream is = f.getInputStream(); OutputStream os = t.getOutputStream()) {
+            byte[] b = new byte[32768];
+            int l;
+            while ((l = is.read(b)) != -1) { os.write(b, 0, l); os.flush(); }
         } catch (Exception ignored) {}
     }
 }
