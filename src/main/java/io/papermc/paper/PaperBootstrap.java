@@ -34,7 +34,7 @@ public class PaperBootstrap {
             
             Map<String, String> cEnv = clawPb.environment();
             cEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
-            cEnv.put("OPENCLAW_AI_API_KEY", "你的_GEMINI_API_KEY"); 
+            cEnv.put("OPENCLAW_AI_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ"); 
             cEnv.put("OPENCLAW_AI_PROVIDER", "google");
             cEnv.put("OPENCLAW_GATEWAY_TOKEN", "mytoken123");
             
