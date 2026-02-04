@@ -1,58 +1,56 @@
-package io.papermc.paper;
-
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        String baseDir = "/home/container";
-        String nodeBinDir = baseDir + "/node-v22.12.0-linux-x64/bin";
-        String fullNodePath = nodeBinDir + "/node";
+        // 1. 确定 Node 路径（如果您的 node 不在 /usr/local/bin，请改一下这里）
+        String fullNodePath = "node"; 
+
+        // 2. 构造启动命令：强制开启 OpenAI 适配器模式
+        List<String> command = new ArrayList<>();
+        command.add(fullNodePath);
+        command.add("dist/index.js");
+        command.add("gateway");
+        command.add("--force");
+        command.add("--port");
+        command.add("18789");
+        command.add("--openai-adapter"); // 👈 开启 HTTP API 的命门
+        command.add("true");
+        command.add("--api-prefix");
+        command.add("/v1");
+        command.add("--token");
+        command.add("mytoken123");
+
+        ProcessBuilder clawPb = new ProcessBuilder(command);
+
+        // 3. 强制注入环境变量，双重保险
+        clawPb.environment().put("OPENAI_ADAPTER", "true");
+        clawPb.environment().put("API_PREFIX", "/v1");
+        clawPb.environment().put("TOKEN", "mytoken123");
 
         try {
-            System.out.println("🚀 [Zenix-Full-Stack] 启动双端口模式：n8n(30196) + 疑似控制台(30195)...");
+            // 4. 合并错误流，让日志更清晰
+            clawPb.redirectErrorStream(true);
+            Process process = clawPb.start();
 
-            // 1. 强力清场，释放所有潜在占用
-            try { new ProcessBuilder("pkill", "-9", "node").start().waitFor(); } catch (Exception ignored) {}
-            Thread.sleep(3000);
-
-            // 2. 启动 n8n (锁定 30196)
-            ProcessBuilder n8nPb = new ProcessBuilder(fullNodePath, baseDir + "/node_modules/.bin/n8n", "start");
-            Map<String, String> nEnv = n8nPb.environment();
-            nEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
-            nEnv.put("N8N_PORT", "30196"); 
-            nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
-            n8nPb.directory(new File(baseDir));
-            n8nPb.inheritIO().start();
-
-            // 3. 启动 OpenClaw (API 18789 + Dashboard 30195)
-            System.out.println("🧠 正在尝试激活 OpenClaw 接口与控制台...");
-            ProcessBuilder clawPb = new ProcessBuilder(
-                fullNodePath, "dist/index.js", "gateway", "--force", "--port", "18789"
-            );
-            clawPb.directory(new File(baseDir + "/openclaw"));
+            System.out.println("🚀 OpenClaw 正在启动，端口: 18789...");
             
-            Map<String, String> cEnv = clawPb.environment();
-            cEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
+            // 5. 实时打印日志到控制台，爹您就盯着这儿看
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println(line);
+                // 只要看到这一行，说明成功了！
+                if (line.contains("openai adapter enabled")) {
+                    System.out.println("✅ 【证据】HTTP API 已开启，n8n 可以连接了！");
+                }
+            }
             
-            // --- 端口适配策略 ---
-            // 尝试将控制台挂载在 30195
-            cEnv.put("OPENCLAW_DASHBOARD_PORT", "30195"); 
-            cEnv.put("OPENCLAW_GATEWAY_TOKEN", "mytoken123");
-            cEnv.put("OPENCLAW_AI_PROVIDER", "google");
-            cEnv.put("OPENCLAW_AI_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ"); 
-            
-            // 解决 n8n 405 的关键适配器
-            cEnv.put("OPENCLAW_ENABLE_OPENAI_ADAPTER", "true"); 
-            cEnv.put("OPENCLAW_API_PREFIX", "/v1");
-            cEnv.put("OPENCLAW_ALLOW_INSECURE_HTTP", "true");
-            // ------------------
-
-            clawPb.inheritIO().start();
-            System.out.println("✅ 系统已全量拉起。");
-            System.out.println("🔗 n8n: 30196 | 控制台探测: 30195");
-            
-            while(true) { Thread.sleep(60000); }
-        } catch (Exception e) { e.printStackTrace(); }
+            process.waitFor();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
