@@ -8,18 +8,15 @@ public class PaperBootstrap {
         String baseDir = "/home/container";
         String nodeBinDir = baseDir + "/node-v22.12.0-linux-x64/bin";
         String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
-        
-        // 🚨 爹，这里已经帮你改成了你刚解析的纯净域名
         String myDomain = "8.8855.cc.cd"; 
 
         try {
-            System.out.println("🚀 [Zenix-Pure-Direct] 正在绑定纯净域名 " + myDomain + " ...");
+            System.out.println("🚀 [Zenix-Cloudflare-Pro] 正在切换至 HTTPS 云端模式...");
 
-            // 1. 强制清理
             new ProcessBuilder("pkill", "-9", "node").start().waitFor();
             Thread.sleep(1000);
 
-            // 2. 启动 N8N (全内存、解除安全 Cookie、绑定域名)
+            // 1. 启动 N8N (注意这里 Webhook URL 变成了 https，且没有端口尾巴)
             ProcessBuilder n8nPb = new ProcessBuilder(baseDir + "/node_modules/.bin/n8n", "start");
             
             Map<String, String> n8nEnv = n8nPb.environment();
@@ -27,8 +24,8 @@ public class PaperBootstrap {
             n8nEnv.put("N8N_PORT", "30196"); 
             n8nEnv.put("N8N_LISTEN_ADDRESS", "0.0.0.0");
             
-            // 🚨 关键：让 N8N 所有的 Webhook 节点都自动生成这个域名的链接
-            n8nEnv.put("WEBHOOK_URL", "http://" + myDomain + ":30196/");
+            // 🚨 核心修改：既然用了 CF Proxy，这里必须用 https，且不用写 :30196
+            n8nEnv.put("WEBHOOK_URL", "https://" + myDomain + "/");
             n8nEnv.put("N8N_SECURE_COOKIE", "false"); 
             n8nEnv.put("N8N_SKIP_WEBHOOK_SELF_CHECK", "true");
 
@@ -36,10 +33,10 @@ public class PaperBootstrap {
             n8nPb.inheritIO();
             n8nPb.start();
 
-            Thread.sleep(12000);
+            Thread.sleep(10000);
 
-            // 3. 启动 OpenClaw
-            System.out.println("✅ 域名绑定成功，现在启动 OpenClaw 对接机器人...");
+            // 2. 启动 OpenClaw
+            System.out.println("✅ N8N 已就绪，同步启动 OpenClaw...");
             ProcessBuilder clawPb = new ProcessBuilder(
                 nodeBinDir + "/node", "dist/index.js", "gateway", 
                 "--port", "18789", "--token", "mytoken123", "--force"
@@ -54,7 +51,7 @@ public class PaperBootstrap {
             clawPb.inheritIO();
             Process pClaw = clawPb.start();
 
-            // 4. 自动审批
+            // 3. 自动审批
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(pClaw.getOutputStream()));
             new Thread(() -> {
                 try {
