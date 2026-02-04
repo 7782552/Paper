@@ -1,56 +1,46 @@
+package io.papermc.paper;
+
 import java.io.*;
-import java.net.*;
-import java.nio.file.*;
 import java.util.*;
-import java.util.regex.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        String workDir = "./.node_data";
+        String baseDir = "/home/container";
+        String nodeBinDir = baseDir + "/node-v22.12.0-linux-x64/bin";
+
         try {
-            System.out.println("🚀 翼龙面板环境 - 高速节点自动部署中...");
-            Files.createDirectories(Paths.get(workDir));
+            System.out.println("⚠️ [Zenix-Legacy-Sync] 切换至生产兼容模式启动...");
 
-            // 1. 自动获取面板分配给你的端口
-            String port = System.getenv("SERVER_PORT");
-            if (port == null) port = "25565"; 
+            // 1. 清理进程
+            try { new ProcessBuilder("pkill", "-9", "node").start().waitFor(); } catch (Exception ignored) {}
+            Thread.sleep(2000);
 
-            // 2. 下载引擎 (sing-box)
-            Path bin = Paths.get(workDir, "sing-box");
-            if (!Files.exists(bin)) {
-                String arch = System.getProperty("os.arch").contains("aarch") ? "arm64" : "amd64";
-                System.out.println("⬇️ 正在下载引擎版本 1.12.12 (" + arch + ")...");
-                String url = "https://github.com/SagerNet/sing-box/releases/download/v1.12.12/sing-box-1.12.12-linux-" + arch + ".tar.gz";
-                new ProcessBuilder("bash", "-c", "curl -L " + url + " | tar -xzC " + workDir + " --strip-components=1").start().waitFor();
-                new ProcessBuilder("chmod", "+x", bin.toString()).start().waitFor();
-            }
+            // 2. 启动 n8n (保持不变)
+            ProcessBuilder n8nPb = new ProcessBuilder(nodeBinDir + "/node", baseDir + "/node_modules/.bin/n8n", "start");
+            Map<String, String> nEnv = n8nPb.environment();
+            nEnv.put("N8N_PORT", "30196");
+            nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
+            n8nPb.directory(new File(baseDir));
+            n8nPb.inheritIO().start();
 
-            // 3. 生成 Reality 密钥对
-            Process p = new ProcessBuilder(bin.toString(), "generate", "reality-keypair").start();
-            String out = new String(p.getInputStream().readAllBytes());
-            Matcher m = Pattern.compile("PrivateKey: (\\S+)\\s+PublicKey: (\\S+)").matcher(out);
-            String priv = "", pub = "";
-            if (m.find()) { priv = m.group(1); pub = m.group(2); }
-
-            // 4. 写入高速 VLESS 配置文件
-            String uuid = UUID.randomUUID().toString();
-            String config = "{\"log\":{\"level\":\"error\"},\"inbounds\":[{\"type\":\"vless\",\"listen\":\"::\",\"listen_port\":" + port + ",\"users\":[{\"uuid\":\"" + uuid + "\",\"flow\":\"xtls-rprx-vision\"}],\"tls\":{\"enabled\":true,\"server_name\":\"www.microsoft.com\",\"reality\":{\"enabled\":true,\"handshake\":{\"server\":\"www.microsoft.com\",\"server_port\":443},\"private_key\":\"" + priv + "\",\"short_id\":[\"6ba8505e\"]}}}" + "],\"outbounds\":[{\"type\":\"direct\"}]}";
-            Files.writeString(Paths.get(workDir, "config.json"), config);
-
-            // 5. 启动引擎
-            System.out.println("⚡ 引擎已启动，监听端口: " + port);
-            Process engine = new ProcessBuilder(bin.toString(), "run", "-c", workDir + "/config.json").inheritIO().start();
-
-            // 6. 打印连接信息
-            String ip = new Scanner(new URL("https://api.ipify.org").openStream()).next();
-            System.out.println("\n" + "=".repeat(50));
-            System.out.println("✅ 高速 VLESS Reality 节点已就绪：");
-            System.out.printf("\nvless://%s@%s:%s?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.microsoft.com&fp=chrome&pbk=%s&sid=6ba8505e#Ptero-HighSpeed\n", uuid, ip, port, pub);
-            System.out.println("=".repeat(50));
-
-            engine.waitFor();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+            // 3. 启动 OpenClaw (核心变动)
+            // 使用 prod 模式启动，这会加载完整的 Web 和 API 堆栈
+            ProcessBuilder clawPb = new ProcessBuilder(nodeBinDir + "/node", "dist/index.js", "prod");
+            clawPb.directory(new File(baseDir + "/openclaw"));
+            
+            Map<String, String> cEnv = clawPb.environment();
+            cEnv.put("PORT", "18789");
+            cEnv.put("OPENCLAW_GATEWAY_TOKEN", "mytoken123");
+            cEnv.put("OPENCLAW_AI_PROVIDER", "google");
+            cEnv.put("OPENCLAW_AI_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ"); 
+            
+            // 🚨 这一行是解决 405 的救命稻草：强制开启 OpenAI 仿真层
+            cEnv.put("OPENCLAW_ENABLE_OPENAI_ADAPTER", "true"); 
+            cEnv.put("OPENCLAW_API_PREFIX", "/v1");
+            
+            clawPb.inheritIO().start();
+            System.out.println("✅ 系统已重新校准，请重启后测试。");
+            while(true) { Thread.sleep(60000); }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 }
