@@ -11,12 +11,12 @@ public class PaperBootstrap {
         String myDomain = "8.8855.cc.cd"; 
 
         try {
-            System.out.println("🚀 [Zenix-Cloudflare-Pro] 正在切换至 HTTPS 云端模式...");
+            System.out.println("🚀 [Zenix-Final-Fix] 正在强制对齐 Cloudflare HTTPS 协议...");
 
             new ProcessBuilder("pkill", "-9", "node").start().waitFor();
             Thread.sleep(1000);
 
-            // 1. 启动 N8N (注意这里 Webhook URL 变成了 https，且没有端口尾巴)
+            // 1. 启动 N8N
             ProcessBuilder n8nPb = new ProcessBuilder(baseDir + "/node_modules/.bin/n8n", "start");
             
             Map<String, String> n8nEnv = n8nPb.environment();
@@ -24,10 +24,14 @@ public class PaperBootstrap {
             n8nEnv.put("N8N_PORT", "30196"); 
             n8nEnv.put("N8N_LISTEN_ADDRESS", "0.0.0.0");
             
-            // 🚨 核心修改：既然用了 CF Proxy，这里必须用 https，且不用写 :30196
+            // 🚨 解决 400 报错的关键：告诉 N8N 外部是 HTTPS，但内部请用 HTTP 监听
             n8nEnv.put("WEBHOOK_URL", "https://" + myDomain + "/");
+            n8nEnv.put("N8N_PROTOCOL", "http");
+            
+            // 🚨 解决网页点不动的关键：彻底关闭安全 Cookie 校验
             n8nEnv.put("N8N_SECURE_COOKIE", "false"); 
             n8nEnv.put("N8N_SKIP_WEBHOOK_SELF_CHECK", "true");
+            n8nEnv.put("N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS", "false");
 
             n8nPb.directory(new File(baseDir));
             n8nPb.inheritIO();
@@ -36,7 +40,7 @@ public class PaperBootstrap {
             Thread.sleep(10000);
 
             // 2. 启动 OpenClaw
-            System.out.println("✅ N8N 已就绪，同步启动 OpenClaw...");
+            System.out.println("✅ N8N 协议已就绪，正在激活 OpenClaw...");
             ProcessBuilder clawPb = new ProcessBuilder(
                 nodeBinDir + "/node", "dist/index.js", "gateway", 
                 "--port", "18789", "--token", "mytoken123", "--force"
