@@ -10,57 +10,54 @@ public class PaperBootstrap {
         String n8nBin = baseDir + "/node_modules/.bin/n8n";
 
         try {
-            System.out.println("⚠️ [Zenix-Emergency] 正在强行恢复全家桶系统...");
+            System.out.println("⚠️ [Zenix-Emergency] 正在执行全量环境注入启动...");
 
-            // 1. 强制清理残留进程，归还端口
-            System.out.println("🔄 正在清理所有 Node 进程...");
+            // 1. 暴力清理，确保端口 30196 和 18789 彻底空出
             try {
                 new ProcessBuilder("pkill", "-9", "node").start().waitFor();
             } catch (Exception ignored) {}
             Thread.sleep(2000);
 
-            // 2. 启动 n8n (自动化中心 - 30196)
-            System.out.println("🚀 正在启动 n8n (Port: 30196)...");
+            // 2. 启动 n8n (自动化中心)
+            System.out.println("🚀 启动 n8n...");
             ProcessBuilder n8nPb = new ProcessBuilder(nodeBinDir + "/node", n8nBin, "start");
             Map<String, String> nEnv = n8nPb.environment();
             nEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
             nEnv.put("N8N_PORT", "30196"); 
             nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
-            
             n8nPb.directory(new File(baseDir));
             n8nPb.inheritIO();
             n8nPb.start();
 
-            // 3. 启动 OpenClaw (AI 大脑 - 18789)
-            // 采用环境变量注入方式，彻底解决 "unknown option --port" 报错
-            System.out.println("🧠 正在启动 OpenClaw (Port: 18789)...");
-            ProcessBuilder clawPb = new ProcessBuilder(nodeBinDir + "/node", "dist/index.js");
+            // 3. 启动 OpenClaw (AI 大脑)
+            // 核心教训：不再加任何 --参数，只运行 gateway 指令，配置全靠环境变量
+            System.out.println("🧠 启动 OpenClaw (API/Gateway 模式)...");
+            ProcessBuilder clawPb = new ProcessBuilder(nodeBinDir + "/node", "dist/index.js", "gateway");
             clawPb.directory(new File(baseDir + "/openclaw"));
             
             Map<String, String> cEnv = clawPb.environment();
             cEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
             
-            // --- 🚨 核心环境变量注入 ---
-            cEnv.put("PORT", "18789"); 
-            cEnv.put("OPENCLAW_TOKEN", "mytoken123");
-            cEnv.put("OPENCLAW_TELEGRAM_BOT_TOKEN", "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM");
-            cEnv.put("OPENCLAW_AI_PROVIDER", "google"); 
-            cEnv.put("OPENCLAW_AI_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ"); // 👈 爹！这里换成你的 Key
-            // -------------------------
+            // --- 🚨 2026 版核心环境变量 (取代所有命令行参数) ---
+            cEnv.put("PORT", "18789");                       // 监听端口
+            cEnv.put("OPENCLAW_TOKEN", "mytoken123");         // 访问令牌
+            cEnv.put("OPENCLAW_AI_PROVIDER", "google");       // 指定 Gemini
+            cEnv.put("OPENCLAW_AI_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ"); // 👈 填入你的 Key
+            
+            // 额外安全补丁：允许 HTTP 访问，防止 405/协议拦截
+            cEnv.put("OPENCLAW_ALLOW_INSECURE_HTTP", "true");
+            cEnv.put("OPENCLAW_API_PREFIX", "/v1"); 
+            // ----------------------------------------------
 
             clawPb.inheritIO();
             clawPb.start();
 
-            System.out.println("✅ 所有系统已进入启动序列！");
-            System.out.println("🌍 n8n 控制台: https://8.8855.cc.cd");
+            System.out.println("✅ [胜利时刻] 系统已就绪！");
+            System.out.println("🔗 n8n 管理页: https://8.8855.cc.cd");
             
-            // 保持 Java 进程存活
-            while(true) {
-                Thread.sleep(60000);
-            }
+            while(true) { Thread.sleep(60000); }
 
         } catch (Exception e) {
-            System.err.println("❌ 严重错误：");
             e.printStackTrace();
         }
     }
