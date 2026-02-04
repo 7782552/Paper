@@ -9,28 +9,28 @@ public class PaperBootstrap {
         String nodeBinDir = baseDir + "/node-v22.12.0-linux-x64/bin";
         String n8nBin = baseDir + "/node_modules/.bin/n8n";
 
-        // 🚨 爹！这里就是给机器人装脑子的地方！
-        String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
-        String geminiKey = "这里填入你的_GEMINI_API_KEY"; // <--- 填入你的 Key
-
         try {
-            System.out.println("🧠 [Zenix-AI-Full] 正在启动 n8n 并为 OpenClaw 安装大脑...");
+            System.out.println("⚠️ [Zenix-Emergency] 启动全家桶：n8n(30196) + OpenClaw(18789)...");
 
-            // 1. 清理战场
+            // 1. 强制清理旧进程，防止端口占用
+            System.out.println("🔄 正在清理残留 Node 进程...");
             new ProcessBuilder("pkill", "-9", "node").start().waitFor();
-            Thread.sleep(1000);
+            Thread.sleep(2000);
 
-            // 2. 启动 n8n (网页后台，端口 30196)
+            // 2. 启动 n8n (自动化中心)
+            System.out.println("🚀 正在启动 n8n...");
             ProcessBuilder n8nPb = new ProcessBuilder(nodeBinDir + "/node", n8nBin, "start");
             Map<String, String> nEnv = n8nPb.environment();
             nEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
             nEnv.put("N8N_PORT", "30196"); 
             nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
+            
             n8nPb.directory(new File(baseDir));
             n8nPb.inheritIO();
             n8nPb.start();
 
-            // 3. 启动 OpenClaw (作为 AI 处理引擎)
+            // 3. 启动 OpenClaw (AI 脑子)
+            System.out.println("🧠 正在启动 OpenClaw...");
             ProcessBuilder clawPb = new ProcessBuilder(
                 nodeBinDir + "/node", "dist/index.js", "gateway", 
                 "--port", "18789", 
@@ -41,19 +41,25 @@ public class PaperBootstrap {
             Map<String, String> cEnv = clawPb.environment();
             cEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
             
-            // 🧠 脑子配置区：注入 AI 动力
-            cEnv.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
-            cEnv.put("OPENCLAW_AI_PROVIDER", "google");
-            cEnv.put("OPENCLAW_AI_API_KEY", geminiKey);
-            cEnv.put("OPENCLAW_AI_MODEL", "gemini-1.5-flash"); // 用最灵敏的模型
+            // --- 🚨 关键配置补全区 ---
+            cEnv.put("OPENCLAW_TELEGRAM_BOT_TOKEN", "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM");
+            cEnv.put("OPENCLAW_AI_PROVIDER", "google"); // 必须指定提供商
+            cEnv.put("OPENCLAW_AI_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ"); // 👈 爹！这里换成你真正的 Gemini Key！
+            // -----------------------
 
             clawPb.inheritIO();
             clawPb.start();
 
-            System.out.println("✅ 网页已恢复，大脑已装好！刷新网页并在 n8n 里连线即可。");
+            System.out.println("✅ 启动序列完成！");
+            System.out.println("1️⃣ n8n 网页: https://8.8855.cc.cd");
+            System.out.println("2️⃣ OpenClaw 接口: 127.0.0.1:18789");
             
-            while(true) { Thread.sleep(10000); }
+            // 保持主线程不退出
+            while(true) { Thread.sleep(60000); }
 
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) { 
+            System.err.println("❌ 启动失败！错误详情：");
+            e.printStackTrace(); 
+        }
     }
 }
