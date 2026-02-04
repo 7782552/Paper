@@ -10,35 +10,32 @@ public class PaperBootstrap {
         String botToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
         String gatewayToken = "mytoken123";
         
-        int publicPort = 30196;   // 外部进来的门
-        int internalPort = 18789; // Node 躲在后面的门
+        // 🚨 这里的 publicIp 必须改成你翼龙面板显示的那个数字 IP！
+        // 比如 "103.21.5.74" 这种，千万别写 "ip" 两个字母
+        String publicIp = "把这里换成你的真实服务器IP"; 
+        int publicPort = 30196;   
+        int internalPort = 18789; 
 
         try {
-            System.out.println("🌉 [物理折射 2.0] 修正端口冲突：30196 -> 18789");
+            System.out.println("✅ [说明书模式] 流量搬运: " + publicPort + " -> " + internalPort);
 
-            // 1. 物理清场
             new ProcessBuilder("pkill", "-9", "node").start().waitFor();
 
-            // 2. 流量搬运线程 (把 30196 的流量转给 18789)
+            // 1. 物理隧道
             new Thread(() -> {
                 try (ServerSocket ss = new ServerSocket(publicPort, 128, InetAddress.getByName("0.0.0.0"))) {
                     while (true) {
-                        Socket client = ss.accept();
+                        Socket c = ss.accept();
                         new Thread(() -> {
-                            try (Socket node = new Socket("127.0.0.1", internalPort)) {
-                                Thread t1 = new Thread(() -> pipe(client, node));
-                                Thread t2 = new Thread(() -> pipe(node, client));
-                                t1.start(); t2.start();
-                                t1.join(); t2.join();
+                            try (Socket n = new Socket("127.0.0.1", internalPort)) {
+                                pipe(c, n); pipe(n, c);
                             } catch (Exception ignored) {}
                         }).start();
                     }
-                } catch (Exception e) {
-                    System.err.println("❌ 外部端口 30196 监听失败: " + e.getMessage());
-                }
+                } catch (Exception e) {}
             }).start();
 
-            // 3. 启动 Node：监听 internalPort (18789)
+            // 2. 启动 Node：根据说明书注入 Web 端连接变量
             ProcessBuilder pb = new ProcessBuilder(
                 baseDir + "/node-v22.12.0-linux-x64/bin/node",
                 "dist/index.js", "gateway", 
@@ -51,17 +48,21 @@ public class PaperBootstrap {
             Map<String, String> env = pb.environment();
             env.put("HOME", baseDir);
             env.put("OPENCLAW_TELEGRAM_BOT_TOKEN", botToken);
-            env.put("OPENCLAW_GATEWAY_HOST", "127.0.0.1"); // 锁死本地，不抢公网端口
+            env.put("OPENCLAW_GATEWAY_HOST", "127.0.0.1");
+            
+            // --- 说明书关键变量：修复 Bridge Missing ---
+            env.put("OPENCLAW_WS_URL", "ws://" + publicIp + ":" + publicPort);
+            env.put("OPENCLAW_PUBLIC_URL", "http://" + publicIp + ":" + publicPort);
 
             pb.inheritIO();
             Process p = pb.start();
 
-            // 4. 暴力审批
+            // 3. 自动审批
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(p.getOutputStream()));
             new Thread(() -> {
                 try {
                     while (p.isAlive()) {
-                        Thread.sleep(15000);
+                        Thread.sleep(10000);
                         writer.write("pairing approve telegram all\n");
                         writer.flush();
                     }
@@ -73,10 +74,12 @@ public class PaperBootstrap {
     }
 
     private static void pipe(Socket f, Socket t) {
-        try (InputStream is = f.getInputStream(); OutputStream os = t.getOutputStream()) {
-            byte[] b = new byte[32768];
-            int l;
-            while ((l = is.read(b)) != -1) { os.write(b, 0, l); os.flush(); }
-        } catch (Exception ignored) {}
+        new Thread(() -> {
+            try (InputStream is = f.getInputStream(); OutputStream os = t.getOutputStream()) {
+                byte[] b = new byte[32768];
+                int l;
+                while ((l = is.read(b)) != -1) { os.write(b, 0, l); os.flush(); }
+            } catch (Exception ignored) {}
+        }).start();
     }
 }
