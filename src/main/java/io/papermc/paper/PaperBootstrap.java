@@ -14,6 +14,7 @@ public class PaperBootstrap {
             String geminiKey = "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String yourTelegramId = "660059245";
+            String pairingCode = "YQXDCTKV";  // 你之前收到的 pairing code
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
@@ -32,21 +33,15 @@ public class PaperBootstrap {
             runCommand(env, nodeBin, ocBin, "config", "set", 
                 "channels.telegram.botToken", telegramToken);
 
-            // 2. 添加你的 Telegram ID 到白名单
-            System.out.println("📝 添加用户到白名单...");
-            runCommand(env, nodeBin, ocBin, "config", "set", 
-                "channels.telegram.allowlist", yourTelegramId);
+            // 2. 批准 Pairing Code
+            System.out.println("✅ 批准 Pairing Code...");
+            runCommand(env, nodeBin, ocBin, "pairing", "approve", "telegram", pairingCode);
 
-            // 3. 禁用 pairing 模式（允许所有人使用）
-            System.out.println("📝 配置访问权限...");
-            runCommand(env, nodeBin, ocBin, "config", "set", 
-                "channels.telegram.security", "allowlist");
-
-            // 4. 运行 doctor --fix
+            // 3. 运行 doctor --fix
             System.out.println("🔧 运行 doctor --fix...");
             runCommand(env, nodeBin, ocBin, "doctor", "--fix");
 
-            // 5. 启动 n8n
+            // 4. 启动 n8n
             System.out.println("🚀 启动 n8n (端口 30196)...");
             ProcessBuilder n8nPb = new ProcessBuilder(
                 nodeBin, baseDir + "/node_modules/.bin/n8n", "start"
@@ -58,7 +53,7 @@ public class PaperBootstrap {
 
             Thread.sleep(3000);
 
-            // 6. 启动 Gateway
+            // 5. 启动 Gateway
             System.out.println("🚀 启动 OpenClaw Gateway + Telegram...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
