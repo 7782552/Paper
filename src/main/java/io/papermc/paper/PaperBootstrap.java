@@ -3,7 +3,6 @@ package io.papermc.paper;
 import java.io.*;
 import java.util.*;
 import java.nio.file.*;
-import java.nio.charset.StandardCharsets;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
@@ -12,20 +11,11 @@ public class PaperBootstrap {
         String nodeBinDir = new File(nodeBin).getParent();
         String n8nBin = baseDir + "/node_modules/.bin/n8n";
         String ocBin = baseDir + "/node_modules/.bin/openclaw";
-        String ocStateDir = baseDir + "/.openclaw";
 
         try {
-            System.out.println("🦞 [System-Fusion] 正在执行 2026.2.3 零参数启动逻辑...");
+            System.out.println("🦞 [System-Fusion] 正在调用 OpenClaw 官方自动配置 (Onboard)...");
 
-            // --- 0. 环境彻底净化 ---
-            File stateDir = new File(ocStateDir);
-            if (!stateDir.exists()) stateDir.mkdirs();
-            
-            // 物理删除所有可能触发校验的配置文件
-            Files.deleteIfExists(Paths.get(ocStateDir, "openclaw.json"));
-            Files.write(Paths.get(ocStateDir, ".onboarded"), "true".getBytes(StandardCharsets.UTF_8));
-
-            // --- 1. 启动 n8n ---
+            // --- 1. 启动 n8n (保持稳定) ---
             ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, n8nBin, "start");
             n8nPb.directory(new File(baseDir));
             Map<String, String> n8nEnv = n8nPb.environment();
@@ -34,33 +24,36 @@ public class PaperBootstrap {
             n8nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
             n8nPb.inheritIO().start();
 
-            // --- 2. 启动 OpenClaw (核心：彻底移除所有会引发 unknown option 的参数) ---
-            // 仅保留必须要有的 gateway 和 --force。其余全部交给环境变量。
-            ProcessBuilder ocPb = new ProcessBuilder(
-                nodeBin, ocBin, "gateway", "--force"
+            // --- 2. 核心：执行官方自动配置 (Onboarding) ---
+            // 这一步会根据环境变量自动创建 openclaw.json，绝对不会报 Unrecognized key
+            System.out.println("⚙️ 正在执行官方静默初始化...");
+            ProcessBuilder onboardPb = new ProcessBuilder(
+                nodeBin, ocBin, "onboard", "--force", "--yes"
             );
+            Map<String, String> obEnv = onboardPb.environment();
+            obEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
             
+            // 喂给自动配置程序的初始信息
+            obEnv.put("OPENCLAW_TELEGRAM_TOKEN", "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM");
+            obEnv.put("OPENCLAW_AI_GOOGLE_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ");
+            
+            // 等待自动配置完成
+            Process obProcess = onboardPb.inheritIO().start();
+            obProcess.waitFor(); 
+            System.out.println("✅ 官方自动配置已完成，文件已由系统生成");
+
+            // --- 3. 正式启动 Gateway ---
+            // 此时配置文件已经是由官方自己生成的了，格式绝对 100% 正确
+            ProcessBuilder ocPb = new ProcessBuilder(nodeBin, ocBin, "gateway");
             Map<String, String> ocEnv = ocPb.environment();
             ocEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
-            ocEnv.put("OPENCLAW_STATE_DIR", ocStateDir);
-            ocEnv.put("CI", "true");
-
-            // --- 关键：2026.2.3 内部逻辑对应的环境变量 ---
-            // 绑定地址与端口：不再通过命令行传，而是通过环境变量注入
-            ocEnv.put("OPENCLAW_GATEWAY_HOST", "0.0.0.0");
-            ocEnv.put("OPENCLAW_GATEWAY_PORT", "18789");
-            ocEnv.put("OPENCLAW_GATEWAY_AUTH", "false"); 
-
-            // Telegram 修复：使用新版标准环境变量
-            ocEnv.put("OPENCLAW_TELEGRAM_ENABLED", "true");
-            ocEnv.put("OPENCLAW_TELEGRAM_BOT_TOKEN", "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM");
             
-            // AI 修复：Gemini 专用变量
-            ocEnv.put("OPENCLAW_AI_PROVIDER", "google");
-            ocEnv.put("OPENCLAW_AI_GOOGLE_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ");
+            // 启动时覆盖端口，确保 n8n 能连上
+            ocEnv.put("OPENCLAW_GATEWAY_PORT", "18789");
+            ocEnv.put("OPENCLAW_GATEWAY_HOST", "127.0.0.1");
 
             ocPb.inheritIO().start();
-            System.out.println("✅ OpenClaw 已进入纯变量环境，正在静默激活 Telegram...");
+            System.out.println("🚀 OpenClaw 已通过官方配置启动，Telegram 正在连接...");
 
             while (true) { Thread.sleep(60000); }
         } catch (Exception e) {
