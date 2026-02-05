@@ -15,30 +15,27 @@ public class PaperBootstrap {
         String ocStateDir = baseDir + "/.openclaw";
 
         try {
-            System.out.println("🦞 [System-Fusion] 正在注入 OpenClaw 2026 标准环境...");
+            System.out.println("🦞 [System-Fusion] 正在注入 OpenClaw 2026.02 最新标准配置...");
 
-            // --- 0. 环境预检与静默处理 ---
+            // --- 0. 环境预检 ---
             File stateDir = new File(ocStateDir);
             if (!stateDir.exists()) stateDir.mkdirs();
             
-            // 写入 2026 版强校验通过的 .onboarded
+            // 写入 2026 强制要求的静默初始化标记
             Files.write(Paths.get(ocStateDir, ".onboarded"), "true".getBytes(StandardCharsets.UTF_8));
 
-            // --- 重点：这是完全对齐 2026.2.3 版本的 JSON 结构 ---
-            // 移除了所有 Unrecognized key (workspace, allowUnconfigured)
-            // 修正了 gateway 下的字段名
+            // --- 核心修正：完全对齐 2026.02.02 版扁平化 Schema ---
+            // 注意：移除了嵌套结构，使用了 address 和 authEnabled
             String configContent = "{\n" +
                 "  \"gateway\": {\n" +
-                "    \"host\": \"127.0.0.1\",\n" +
+                "    \"address\": \"127.0.0.1\",\n" +
                 "    \"port\": 18789,\n" +
-                "    \"auth\": {\n" +
-                "      \"enabled\": false\n" +
-                "    }\n" +
+                "    \"authEnabled\": false\n" +
                 "  }\n" +
                 "}";
             
             Files.write(Paths.get(ocStateDir, "openclaw.json"), configContent.getBytes(StandardCharsets.UTF_8));
-            System.out.println("✅ 配置文件校验对齐完成");
+            System.out.println("✅ 2026 扁平化配置注入成功");
 
             // --- 1. 启动 n8n ---
             if (new File(n8nBin).exists()) {
@@ -47,7 +44,6 @@ public class PaperBootstrap {
                 Map<String, String> n8nEnv = n8nPb.environment();
                 n8nEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
                 
-                // n8n 配置维持不变
                 n8nEnv.put("N8N_PORT", "30196");
                 n8nEnv.put("N8N_PROTOCOL", "https");
                 n8nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
@@ -62,8 +58,7 @@ public class PaperBootstrap {
             if (new File(ocBin).exists()) {
                 System.out.println("🚀 正在激活 OpenClaw Gateway...");
                 
-                // 注意：不再在命令行传递 --allow-unconfigured，因为这在 2026 版某些子命令中是非法的
-                // 我们通过文件让它验证合法
+                // 2026.02.02 版推荐使用 gateway --force 来确保 WebSocket 干净启动
                 ProcessBuilder ocPb = new ProcessBuilder(
                     nodeBin, ocBin, "gateway", "--force"
                 );
@@ -74,14 +69,15 @@ public class PaperBootstrap {
                 ocEnv.put("OPENCLAW_ONBOARDED", "true");
 
                 ocPb.inheritIO().start();
-                System.out.println("✅ OpenClaw 2026 网关服务已在 18789 端口挂载");
+                System.out.println("✅ OpenClaw 2026 服务已在 18789 端口待命");
             }
 
-            System.out.println("🎊 系统全量启动完毕，终端已接管日志。");
+            System.out.println("🎊 系统全量启动完毕！");
             while (true) { Thread.sleep(60000); }
 
         } catch (Exception e) {
-            System.err.println("致命错误: " + e.getMessage());
+            System.err.println("❌ 启动失败: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
