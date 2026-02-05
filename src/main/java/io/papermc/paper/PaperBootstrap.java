@@ -6,15 +6,13 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 正在配置 Telegram...");
+        System.out.println("🦞 [OpenClaw] 正在配置 Telegram + Gemini 2.0...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
-            String geminiKey = "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ";
+            String geminiKey = "AIzaSyBcY0s8ZNZo3NKpuMFpF6jwaa1aTafSV4Y";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
-            String yourTelegramId = "660059245";
-            String pairingCode = "YQXDCTKV";  // 你之前收到的 pairing code
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
@@ -33,15 +31,42 @@ public class PaperBootstrap {
             runCommand(env, nodeBin, ocBin, "config", "set", 
                 "channels.telegram.botToken", telegramToken);
 
-            // 2. 批准 Pairing Code
-            System.out.println("✅ 批准 Pairing Code...");
-            runCommand(env, nodeBin, ocBin, "pairing", "approve", "telegram", pairingCode);
+            // 2. Onboard with Gemini
+            System.out.println("📝 运行 OpenClaw onboard (Gemini 2.0)...");
+            ProcessBuilder onboardPb = new ProcessBuilder(
+                nodeBin, ocBin, "onboard",
+                "--non-interactive",
+                "--accept-risk",
+                "--mode", "local",
+                "--auth-choice", "gemini-api-key",
+                "--gemini-api-key", geminiKey,
+                "--gateway-port", "18789",
+                "--gateway-bind", "lan",
+                "--gateway-auth", "token",
+                "--gateway-token", "admin123",
+                "--skip-daemon",
+                "--skip-skills",
+                "--skip-health",
+                "--skip-ui"
+            );
+            onboardPb.environment().putAll(env);
+            onboardPb.inheritIO();
+            onboardPb.start().waitFor();
 
-            // 3. 运行 doctor --fix
+            // 3. 设置模型为 Gemini 2.0
+            System.out.println("📝 设置模型为 gemini-2.0-flash...");
+            runCommand(env, nodeBin, ocBin, "config", "set", 
+                "agents.defaults.model.primary", "google/gemini-2.0-flash");
+
+            // 4. 批准 Pairing
+            System.out.println("✅ 批准 Pairing...");
+            runCommand(env, nodeBin, ocBin, "pairing", "approve", "telegram", "YQXDCTKV");
+
+            // 5. 运行 doctor --fix
             System.out.println("🔧 运行 doctor --fix...");
             runCommand(env, nodeBin, ocBin, "doctor", "--fix");
 
-            // 4. 启动 n8n
+            // 6. 启动 n8n
             System.out.println("🚀 启动 n8n (端口 30196)...");
             ProcessBuilder n8nPb = new ProcessBuilder(
                 nodeBin, baseDir + "/node_modules/.bin/n8n", "start"
@@ -53,7 +78,7 @@ public class PaperBootstrap {
 
             Thread.sleep(3000);
 
-            // 5. 启动 Gateway
+            // 7. 启动 Gateway
             System.out.println("🚀 启动 OpenClaw Gateway + Telegram...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
