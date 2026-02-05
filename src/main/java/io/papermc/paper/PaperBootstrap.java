@@ -1,6 +1,7 @@
 package io.papermc.paper;
 
 import java.io.*;
+import java.net.*;
 import java.util.*;
 
 public class PaperBootstrap {
@@ -18,6 +19,14 @@ public class PaperBootstrap {
             env.put("HOME", baseDir);
             env.put("GOOGLE_API_KEY", geminiKey);
 
+            // 0. 删除 Telegram Webhook
+            System.out.println("🗑️ 删除 Telegram Webhook...");
+            URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            int code = conn.getResponseCode();
+            System.out.println("   Webhook 删除结果: " + code);
+
             // 1. 配置 Telegram Bot Token
             System.out.println("📝 配置 Telegram Bot...");
             ProcessBuilder configPb = new ProcessBuilder(
@@ -28,27 +37,14 @@ public class PaperBootstrap {
             configPb.inheritIO();
             configPb.start().waitFor();
 
-            // 2. Onboard (不跳过 channels)
-            System.out.println("📝 运行 OpenClaw onboard...");
-            ProcessBuilder onboardPb = new ProcessBuilder(
-                nodeBin, ocBin, "onboard",
-                "--non-interactive",
-                "--accept-risk",
-                "--mode", "local",
-                "--auth-choice", "gemini-api-key",
-                "--gemini-api-key", geminiKey,
-                "--gateway-port", "18789",
-                "--gateway-bind", "lan",
-                "--gateway-auth", "token",
-                "--gateway-token", "admin123",
-                "--skip-daemon",
-                "--skip-skills",
-                "--skip-health",
-                "--skip-ui"
+            // 2. 运行 doctor --fix 启用 Telegram
+            System.out.println("🔧 运行 doctor --fix...");
+            ProcessBuilder doctorPb = new ProcessBuilder(
+                nodeBin, ocBin, "doctor", "--fix"
             );
-            onboardPb.environment().putAll(env);
-            onboardPb.inheritIO();
-            onboardPb.start().waitFor();
+            doctorPb.environment().putAll(env);
+            doctorPb.inheritIO();
+            doctorPb.start().waitFor();
 
             // 3. 启动 n8n
             System.out.println("🚀 启动 n8n (端口 30196)...");
@@ -62,7 +58,7 @@ public class PaperBootstrap {
 
             Thread.sleep(3000);
 
-            // 4. 启动 Gateway (会自动连接 Telegram)
+            // 4. 启动 Gateway
             System.out.println("🚀 启动 OpenClaw Gateway + Telegram...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
