@@ -3,44 +3,45 @@ package io.papermc.paper;
 import java.io.*;
 import java.net.URL;
 import java.nio.file.*;
+import java.util.Map;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
         String baseDir = "/home/container";
-        String nodeFolder = baseDir + "/node-v22";
-        // 关键改动：换成兼容性更好的 .tar.gz
-        String nodeTar = baseDir + "/node22.tar.gz"; 
+        String nodeBin = baseDir + "/node-v22/bin/node";
+        String npmBin = baseDir + "/node-v22/bin/npm";
         
         try {
-            System.out.println("🛡️ [Step 1-Final] 切换至兼容模式安装 Node.js...");
+            System.out.println("🛠️ [Step 2] 开始安装官方 n8n...");
 
-            execute("rm -rf " + nodeFolder + " " + nodeTar);
+            // 1. 设置 NPM 镜像源为淘宝/腾讯镜像，加速下载防止超时
+            System.out.println("🚀 正在优化下载速度...");
+            execute(npmBin + " config set registry https://registry.npmmirror.com");
 
-            // 下载 .tar.gz 版本的官方二进制包
-            System.out.println("📥 正在下载官方 .tar.gz 包 (兼容性更好)...");
-            downloadFile("https://nodejs.org/dist/v22.12.0/node-v22.12.0-linux-x64.tar.gz", nodeTar);
-            
-            File tarFile = new File(nodeTar);
-            System.out.println("📊 下载完成，文件大小: " + (tarFile.length() / 1024 / 1024) + " MB");
+            // 2. 安装 n8n
+            // 我们使用 --no-audit 和 --no-fund 来极度减少内存消耗
+            System.out.println("📥 正在拉取 n8n 核心组件... (这步可能需要 3-5 分钟)");
+            execute(npmBin + " install n8n --no-audit --no-fund --loglevel info");
 
-            // 使用 -zxf 处理 gzip 格式
-            System.out.println("📦 正在执行兼容性解压...");
-            new File(nodeFolder).mkdirs();
-            execute("tar -zxf " + nodeTar + " --strip-components=1 -C " + nodeFolder);
-            
-            System.out.println("🔍 正在验证环境...");
-            execute("chmod +x " + nodeFolder + "/bin/node");
-            execute(nodeFolder + "/bin/node -v");
+            // 3. 验证安装结果
+            File n8nBin = new File(baseDir + "/node_modules/n8n/bin/n8n");
+            if (n8nBin.exists()) {
+                System.out.println("✨ [Step 2 成功] n8n 已成功安装到磁盘！");
+                
+                // 4. 尝试启动并监听 30196 端口
+                System.out.println("🚀 正在尝试启动服务...");
+                startN8n(nodeBin, n8nBin.getAbsolutePath());
+                
+                System.out.println("✅ 服务已进入后台运行模式。");
+                System.out.println("📢 现在请尝试刷新网页，如果看到登录界面，请告诉我！");
+            } else {
+                throw new Exception("n8n 安装验证失败，未找到执行文件。");
+            }
 
-            System.out.println("✅ [Step 1 完美成功] 环境已就绪！");
-            // 删除压缩包节省磁盘空间
-            tarFile.delete();
-
-            // 保持运行
             while (true) { Thread.sleep(60000); }
 
         } catch (Exception e) {
-            System.out.println("❌ 安装失败，请检查下方报错:");
+            System.out.println("❌ 第二阶段失败，报错详情:");
             e.printStackTrace();
         }
     }
@@ -51,14 +52,22 @@ public class PaperBootstrap {
         BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
         BufferedReader stdError = new BufferedReader(new InputStreamReader(p.getErrorStream()));
         String s;
-        while ((s = stdInput.readLine()) != null) System.out.println("  [OUT]: " + s);
-        while ((s = stdError.readLine()) != null) System.err.println("  [ERR]: " + s);
+        while ((s = stdInput.readLine()) != null) System.out.println("  > " + s);
+        while ((s = stdError.readLine()) != null) System.err.println("  ! " + s);
         if (p.waitFor() != 0) throw new Exception("指令执行失败");
     }
 
-    private static void downloadFile(String urlStr, String file) throws IOException {
-        try (InputStream in = new URL(urlStr).openStream()) {
-            Files.copy(in, Paths.get(file), StandardCopyOption.REPLACE_EXISTING);
-        }
+    private static void startN8n(String nodePath, String n8nPath) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(nodePath, n8nPath, "start");
+        pb.directory(new File("/home/container"));
+        
+        // 设置 n8n 运行必要的环境变量
+        Map<String, String> env = pb.environment();
+        env.put("N8N_PORT", "30196");
+        env.put("N8N_HOST", "0.0.0.0");
+        env.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
+        env.put("N8N_PROTOCOL", "https");
+        
+        pb.inheritIO().start();
     }
 }
