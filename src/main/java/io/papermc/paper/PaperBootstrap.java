@@ -11,7 +11,7 @@ public class PaperBootstrap {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
-            String geminiKey = "AIzaSyCuuH84p_ARXnSA4J3AV96dl3MQmTZwj3g";  // ← 必须换成新的！
+            String geminiKey = "AIzaSyDM9NeiHTAb0U4vyspxbZpqocYuvMFK3ek";  // ← 必须换成新的！
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String pairingCode = "L4BTFFMR";
 
