@@ -1,52 +1,53 @@
 package io.papermc.paper;
 
 import java.io.*;
-import java.util.*;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
         String baseDir = "/home/container";
-        String nodeBin = "/home/container/node-v22/bin/node"; 
-        String n8nBin = baseDir + "/node_modules/.bin/n8n";
-        String ocBin = baseDir + "/node_modules/.bin/openclaw";
-
+        
         try {
-            // 这是官方 2026.2.3 要求的强制令牌，不要改动，除非你在 n8n 里同步修改
-            String myFixedToken = "admin123"; 
+            System.out.println("🕵️ [System-Fusion] 正在全盘扫描 OpenClaw 核心文件...");
 
-            System.out.println("🦞 [System-Fusion] 启动双引擎模式...");
-            System.out.println("🔗 n8n 入口: https://8.8855.cc.cd/");
-            System.out.println("🧠 OpenClaw 网关: 127.0.0.1:18789 (Token: " + myFixedToken + ")");
+            // --- 自动寻找并修改 defaults.js ---
+            Files.walkFileTree(Paths.get(baseDir), new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    String fileName = file.getFileName().toString();
+                    if (fileName.equals("defaults.js") || fileName.equals("agent-defaults.js")) {
+                        String content = new String(Files.readAllBytes(file));
+                        if (content.contains("claude-opus-4-5")) {
+                            System.out.println("🎯 发现目标: " + file.toAbsolutePath());
+                            String updated = content
+                                .replace("anthropic/claude-opus-4-5", "google/gemini-1.5-pro-latest")
+                                .replace("provider: \"anthropic\"", "provider: \"google\"");
+                            Files.write(file, updated.getBytes());
+                            System.out.println("💉 手术成功：默认模型已改为 Gemini 1.5 Pro");
+                        }
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
 
-            // --- 1. 启动 n8n ---
-            ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, n8nBin, "start");
-            n8nPb.directory(new File(baseDir));
-            Map<String, String> n8nEnv = n8nPb.environment();
-            n8nEnv.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
-            n8nEnv.put("N8N_PORT", "30196");
-            n8nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
-            n8nPb.inheritIO().start();
+            // --- 启动 n8n ---
+            String nodeBin = "/home/container/node-v22/bin/node";
+            new ProcessBuilder(nodeBin, baseDir + "/node_modules/.bin/n8n", "start").inheritIO().start();
 
-            // --- 2. 启动 OpenClaw ---
-            ProcessBuilder ocPb = new ProcessBuilder(
-                nodeBin, ocBin, "gateway", "--allow-unconfigured", "--port", "18789"
-            );
-            Map<String, String> ocEnv = ocPb.environment();
-            ocEnv.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
+            // --- 启动 OpenClaw ---
+            String ocBin = baseDir + "/node_modules/.bin/openclaw";
+            ProcessBuilder ocPb = new ProcessBuilder(nodeBin, ocBin, "gateway", "--allow-unconfigured", "--port", "18789");
             
-            // 官方环境变量注入
-            ocEnv.put("OPENCLAW_GATEWAY_TOKEN", myFixedToken);
-            ocEnv.put("OPENCLAW_GATEWAY_HOST", "0.0.0.0");
-            ocEnv.put("OPENCLAW_AI_PROVIDER", "google");
-            ocEnv.put("OPENCLAW_AI_MODEL", "gemini-1.5-pro-latest");
-            ocEnv.put("OPENCLAW_AI_GOOGLE_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ");
+            Map<String, String> env = ocPb.environment();
+            env.put("OPENCLAW_GATEWAY_TOKEN", "admin123");
+            env.put("OPENCLAW_AI_GOOGLE_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ");
+            env.put("OPENCLAW_AI_PROVIDER", "google");
+            env.put("OPENCLAW_GATEWAY_HOST", "0.0.0.0");
             
-            // 确保 OpenClaw 不去抢 Telegram 句柄
-            ocEnv.put("OPENCLAW_TELEGRAM_ENABLED", "false"); 
-
             ocPb.inheritIO().start();
-            System.out.println("🚀 混合架构已就绪。请前往 n8n 配置 HTTP 请求至 18789 端口。");
+            System.out.println("🚀 OpenClaw 网关启动序列已完成。");
 
             while (true) { Thread.sleep(60000); }
         } catch (Exception e) {
