@@ -7,25 +7,24 @@ import java.nio.charset.StandardCharsets;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
+        // --- 1. 严格对齐您 class 文件中的路径 ---
         String baseDir = "/home/container";
-        String nodeBinDir = baseDir + "/node-v22/bin";
+        String nodeBinDir = baseDir + "/node-v22.12.0-linux-x64/bin"; // 修正为您的 class 路径
         String nodeBin = nodeBinDir + "/node";
-        String n8nBin = baseDir + "/node_modules/n8n/bin/n8n";
+        String n8nBin = baseDir + "/node_modules/.bin/n8n";
         String ocBin = baseDir + "/node_modules/.bin/openclaw";
         String ocStateDir = baseDir + "/.openclaw";
 
         try {
-            System.out.println("🦞 [System-Fusion] 正在注入 OpenClaw 2026.02 最新标准配置...");
+            System.out.println("💎 [System-Fusion] 正在初始化 2026 联动环境 (含 Telegram 修复)...");
 
-            // --- 0. 环境预检 ---
+            // --- 2. 预清理与目录初始化 ---
             File stateDir = new File(ocStateDir);
             if (!stateDir.exists()) stateDir.mkdirs();
-            
-            // 写入 2026 强制要求的静默初始化标记
             Files.write(Paths.get(ocStateDir, ".onboarded"), "true".getBytes(StandardCharsets.UTF_8));
 
-            // --- 核心修正：完全对齐 2026.02.02 版扁平化 Schema ---
-            // 注意：移除了嵌套结构，使用了 address 和 authEnabled
+            // --- 3. 核心：OpenClaw 2026 扁平化 JSON 配置 ---
+            // 修正 Telegram 配置：新版通常在 JSON 中定义或通过环境变量覆盖
             String configContent = "{\n" +
                 "  \"gateway\": {\n" +
                 "    \"address\": \"127.0.0.1\",\n" +
@@ -33,50 +32,43 @@ public class PaperBootstrap {
                 "    \"authEnabled\": false\n" +
                 "  }\n" +
                 "}";
-            
             Files.write(Paths.get(ocStateDir, "openclaw.json"), configContent.getBytes(StandardCharsets.UTF_8));
-            System.out.println("✅ 2026 扁平化配置注入成功");
 
-            // --- 1. 启动 n8n ---
-            if (new File(n8nBin).exists()) {
-                ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, "--max-old-space-size=2048", n8nBin, "start");
-                n8nPb.directory(new File(baseDir));
-                Map<String, String> n8nEnv = n8nPb.environment();
-                n8nEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
-                
-                n8nEnv.put("N8N_PORT", "30196");
-                n8nEnv.put("N8N_PROTOCOL", "https");
-                n8nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
-                n8nEnv.put("N8N_EDITOR_BASE_URL", "https://8.8855.cc.cd/");
-                n8nEnv.put("N8N_SECURE_COOKIE", "false");
-                
-                n8nPb.inheritIO().start();
-                System.out.println("✅ n8n 引擎已就绪");
-            }
+            // --- 4. 启动 n8n ---
+            ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, n8nBin, "start");
+            n8nPb.directory(new File(baseDir));
+            Map<String, String> n8nEnv = n8nPb.environment();
+            n8nEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
+            n8nEnv.put("N8N_PORT", "30196");
+            n8nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
+            n8nPb.inheritIO().start();
+            System.out.println("✅ n8n 引擎已就绪: https://8.8855.cc.cd");
 
-            // --- 2. 启动 OpenClaw Gateway ---
-            if (new File(ocBin).exists()) {
-                System.out.println("🚀 正在激活 OpenClaw Gateway...");
-                
-                // 2026.02.02 版推荐使用 gateway --force 来确保 WebSocket 干净启动
-                ProcessBuilder ocPb = new ProcessBuilder(
-                    nodeBin, ocBin, "gateway", "--force"
-                );
-                
-                Map<String, String> ocEnv = ocPb.environment();
-                ocEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
-                ocEnv.put("OPENCLAW_STATE_DIR", ocStateDir);
-                ocEnv.put("OPENCLAW_ONBOARDED", "true");
+            // --- 5. 启动 OpenClaw (重点修复 Telegram 环境变量) ---
+            System.out.println("🚀 正在激活 OpenClaw 并挂载 Telegram 模块...");
+            ProcessBuilder ocPb = new ProcessBuilder(nodeBin, ocBin, "gateway", "--force");
+            
+            Map<String, String> ocEnv = ocPb.environment();
+            ocEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
+            ocEnv.put("OPENCLAW_STATE_DIR", ocStateDir);
+            ocEnv.put("OPENCLAW_ONBOARDED", "true");
 
-                ocPb.inheritIO().start();
-                System.out.println("✅ OpenClaw 2026 服务已在 18789 端口待命");
-            }
+            // --- 修正后的 2026 版环境变量命名 ---
+            // 1. Telegram 配置
+            ocEnv.put("OPENCLAW_TELEGRAM_ENABLED", "true");
+            ocEnv.put("OPENCLAW_TELEGRAM_TOKEN", "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM");
+            
+            // 2. AI 模型配置 (Google Gemini)
+            ocEnv.put("OPENCLAW_AI_ENABLED", "true");
+            ocEnv.put("OPENCLAW_AI_PROVIDER", "google");
+            ocEnv.put("OPENCLAW_AI_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ");
 
-            System.out.println("🎊 系统全量启动完毕！");
+            ocPb.inheritIO().start();
+            System.out.println("✅ OpenClaw 服务已启动，正在尝试连接 Telegram...");
+
             while (true) { Thread.sleep(60000); }
 
         } catch (Exception e) {
-            System.err.println("❌ 启动失败: " + e.getMessage());
             e.printStackTrace();
         }
     }
