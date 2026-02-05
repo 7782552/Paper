@@ -1,74 +1,62 @@
-import java.io.*;
-import java.util.*;
+import java.io.File;
+import java.util.Map;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        String baseDir = System.getProperty("user.dir");
-        // 根据你的环境自动定位路径
-        String nodeBin = baseDir + "/node/bin/node";
+        String baseDir = "/home/container";
+        // 保持你原本能启动的硬编码路径
+        String nodeBinDir = baseDir + "/node-v22.12.0-linux-x64/bin";
         String n8nBin = baseDir + "/node_modules/.bin/n8n";
+        String nodePath = nodeBinDir + "/node";
 
         try {
-            System.out.println("🔍 [Diagnostic] 正在开始深度环境检测...");
+            System.out.println("⚠️ [Zenix-Fix] 正在启动 n8n 并修复 521 访问错误...");
 
-            // 1. 核心文件权限与存在检查
-            checkFile(nodeBin, "Node 运行时");
-            checkFile(n8nBin, "n8n 核心文件");
-
-            // 2. 强力清理可能导致 521 的残留进程
-            System.out.println("🔄 正在强制清理存留的 Node 进程以释放端口...");
+            // 1. 强力清理旧进程（确保端口 30196 完全释放）
             try {
                 new ProcessBuilder("pkill", "-9", "node").start().waitFor();
-                Thread.sleep(1000);
+                Thread.sleep(1000L);
             } catch (Exception ignored) {}
 
-            // 3. 配置启动参数（针对 Node 22.x 优化）
-            System.out.println("🚀 尝试启动 n8n (目标端口: 30196)...");
-            ProcessBuilder pb = new ProcessBuilder(nodeBin, n8nBin, "start");
-            pb.directory(new File(baseDir));
+            // 2. 配置 n8n 启动环境
+            ProcessBuilder n8nPb = new ProcessBuilder(nodePath, n8nBin, "start");
+            n8nPb.directory(new File(baseDir));
             
-            Map<String, String> env = pb.environment();
-            env.put("N8N_PORT", "30196");
-            env.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
-            // 确保 Node 能找到全局模块
-            env.put("PATH", baseDir + "/node/bin:" + System.getenv("PATH"));
+            Map<String, String> nEnv = n8nPb.environment();
+            nEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
             
-            // 🚨 关键：合并错误流，这样我们才能看到 Node 崩溃的具体报错
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-
-            // 4. 开启日志监听线程
-            new Thread(() -> {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        System.out.println("📢 [n8n-SYSTEM]: " + line);
-                    }
-                } catch (IOException e) {
-                    System.err.println("❌ 日志流读取中断: " + e.getMessage());
-                }
-            }).start();
-
-            System.out.println("✅ 诊断监听已挂载。请观察下方 [n8n-SYSTEM] 的输出：");
+            // --- 【关键修复点：解决 521 错误】 ---
+            nEnv.put("N8N_PORT", "30196");
+            nEnv.put("N8N_HOST", "0.0.0.0");               // 修正1：允许所有外部连接
+            nEnv.put("N8N_LISTEN_ADDRESS", "0.0.0.0");     // 修正2：强制监听所有网卡
+            nEnv.put("N8N_PROTOCOL", "https");             // 修正3：匹配你的 https 域名
+            nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
             
-            // 保持主程序运行
-            while(true) { Thread.sleep(60000); }
-        } catch (Exception e) {
-            System.err.println("❌ 引导程序初始化失败：");
-            e.printStackTrace();
-        }
-    }
+            // 修正4：指定数据目录，防止权限导致的启动挂起
+            nEnv.put("N8N_USER_FOLDER", baseDir + "/.n8n"); 
+            // -------------------------------------
 
-    private static void checkFile(String path, String name) {
-        File f = new File(path);
-        if (f.exists()) {
-            System.out.println("✔️ 检查通过: " + name + " -> " + path);
-            if (!f.canExecute()) {
-                System.out.println("⚠️ 警告: " + name + " 缺少执行权限，尝试修复...");
-                f.setExecutable(true);
+            n8nPb.inheritIO().start();
+
+            // 3. 启动 OpenClaw
+            System.out.println("🧠 正在启动 OpenClaw Gateway...");
+            ProcessBuilder clawPb = new ProcessBuilder(nodePath, "dist/index.js", "gateway");
+            clawPb.directory(new File(baseDir + "/openclaw"));
+            Map<String, String> cEnv = clawPb.environment();
+            cEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
+            cEnv.put("PORT", "18789");
+            cEnv.put("OPENCLAW_AI_PROVIDER", "google");
+            cEnv.put("OPENCLAW_AI_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ");
+            cEnv.put("OPENCLAW_ALLOW_INSECURE_HTTP", "true");
+            clawPb.inheritIO().start();
+
+            System.out.println("✅ 服务已完全拉起，请尝试刷新页面。");
+
+            while (true) {
+                Thread.sleep(60000L);
             }
-        } else {
-            System.err.println("🛑 严重错误: 找不到 " + name + "！路径不正确。");
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
