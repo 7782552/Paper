@@ -5,49 +5,57 @@ import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        String baseDir = "/home/container";
-        String nodeBin = baseDir + "/node-v22/bin/node";
-        String n8nBin = baseDir + "/node_modules/.bin/n8n";
-        String ocBin = baseDir + "/node_modules/.bin/openclaw";
-
+        System.out.println("🚀 [System-Fusion] 正在应用经证实的暴力覆写方案...");
         try {
-            System.out.println("🧪 [System-Fusion] 正在基于源码原理执行环境重构...");
+            String baseDir = "/home/container";
+            // 自动匹配你的 node 路径
+            String nodeBin = baseDir + "/node-v22/bin/node";
+            String openclawDir = baseDir + "/openclaw";
+            String defaultsPath = openclawDir + "/dist/agents/defaults.js";
+            
+            // --- 核心手术：修改 defaults.js ---
+            String newContent = 
+                "// Defaults for agent metadata when upstream does not supply them.\n" +
+                "export const DEFAULT_PROVIDER = \"google\";\n" +
+                "export const DEFAULT_MODEL = \"gemini-2.0-flash\";\n" +
+                "export const DEFAULT_CONTEXT_TOKENS = 1_000_000;\n";
+            
+            try (FileWriter fw = new FileWriter(defaultsPath)) {
+                fw.write(newContent);
+            }
+            System.out.println("✅ 已物理覆写 defaults.js 为 Gemini-2.0-Flash");
 
-            // --- 第一步：启动 n8n (完全保留你的原始配置) ---
-            ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, n8nBin, "start");
+            // --- 环境变量准备 ---
+            String myKey = "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ";
+            Map<String, String> commonEnv = new HashMap<>();
+            commonEnv.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
+            commonEnv.put("GOOGLE_API_KEY", myKey);
+            commonEnv.put("OPENCLAW_AI_GOOGLE_API_KEY", myKey);
+            commonEnv.put("OPENCLAW_GATEWAY_TOKEN", "admin123");
+
+            // --- 启动 n8n (后台运行) ---
+            System.out.println("🚀 启动 n8n 引擎...");
+            ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, baseDir + "/node_modules/.bin/n8n", "start");
+            n8nPb.environment().putAll(commonEnv);
             n8nPb.environment().put("N8N_PORT", "30196");
             n8nPb.environment().put("WEBHOOK_URL", "https://8.8855.cc.cd/");
-            n8nPb.environment().put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
             n8nPb.inheritIO().start();
 
-            // --- 第二步：启动 OpenClaw (核心：利用环境变量劫持原理) ---
-            // 针对你提供的源码逻辑，我们必须同时注入 PROVIDER 和 MODEL
+            // --- 启动 OpenClaw Gateway ---
+            System.out.println("🚀 启动 OpenClaw Gateway...");
             ProcessBuilder ocPb = new ProcessBuilder(
-                nodeBin, ocBin, "gateway", 
-                "--allow-unconfigured", 
-                "--port", "18789"
+                nodeBin, "dist/index.js", "gateway", "--token", "admin123"
             );
+            ocPb.directory(new File(openclawDir));
+            ocPb.environment().putAll(commonEnv);
+            ocPb.inheritIO();
             
-            Map<String, String> env = ocPb.environment();
-            env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
+            // 启动并等待（防止 Java 进程直接退出）
+            Process ocProcess = ocPb.start();
+            ocProcess.waitFor();
             
-            // 2026 官方推荐的最强强制变量名 (覆盖 defaults.js 的硬编码)
-            String myKey = "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ";
-            env.put("OPENCLAW_AI_PROVIDER", "google");
-            env.put("OPENCLAW_AI_MODEL", "google/gemini-1.5-pro-latest");
-            env.put("OPENCLAW_AI_GOOGLE_API_KEY", myKey);
-            env.put("GOOGLE_API_KEY", myKey); // 兼容某些插件直接读取这个变量
-            
-            // 屏蔽 Telegram，防止它因为找不到 Token 报错
-            env.put("OPENCLAW_TELEGRAM_ENABLED", "false");
-            env.put("OPENCLAW_GATEWAY_TOKEN", "admin123");
-
-            ocPb.inheritIO().start();
-            System.out.println("🚀 环境已重构，OpenClaw 现已强制路由至 Google Gemini。");
-
-            while (true) { Thread.sleep(60000); }
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (Exception e) { 
+            e.printStackTrace(); 
         }
     }
 }
