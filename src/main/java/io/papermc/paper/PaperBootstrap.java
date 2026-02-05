@@ -1,61 +1,70 @@
 package io.papermc.paper;
 
 import java.io.*;
+import java.nio.file.*;
 import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🚀 [System-Fusion] 正在应用经证实的暴力覆写方案...");
+        System.out.println("🚀 [System-Fusion] 正在适配路径并应用暴力覆写...");
         try {
             String baseDir = "/home/container";
-            // 自动匹配你的 node 路径
             String nodeBin = baseDir + "/node-v22/bin/node";
-            String openclawDir = baseDir + "/openclaw";
-            String defaultsPath = openclawDir + "/dist/agents/defaults.js";
             
-            // --- 核心手术：修改 defaults.js ---
-            String newContent = 
-                "// Defaults for agent metadata when upstream does not supply them.\n" +
-                "export const DEFAULT_PROVIDER = \"google\";\n" +
-                "export const DEFAULT_MODEL = \"gemini-2.0-flash\";\n" +
-                "export const DEFAULT_CONTEXT_TOKENS = 1_000_000;\n";
-            
-            try (FileWriter fw = new FileWriter(defaultsPath)) {
-                fw.write(newContent);
+            // --- 自动路径匹配 ---
+            String[] possiblePaths = {
+                baseDir + "/node_modules/openclaw/dist/agents/defaults.js",
+                baseDir + "/openclaw/dist/agents/defaults.js",
+                baseDir + "/node_modules/openclaw/dist/plugin-sdk/defaults.js"
+            };
+
+            String finalPath = null;
+            for (String path : possiblePaths) {
+                if (new File(path).exists()) {
+                    finalPath = path;
+                    break;
+                }
             }
-            System.out.println("✅ 已物理覆写 defaults.js 为 Gemini-2.0-Flash");
 
-            // --- 环境变量准备 ---
+            if (finalPath != null) {
+                System.out.println("🎯 定位到目标文件: " + finalPath);
+                String newContent = 
+                    "export const DEFAULT_PROVIDER = \"google\";\n" +
+                    "export const DEFAULT_MODEL = \"gemini-2.0-flash\";\n" +
+                    "export const DEFAULT_CONTEXT_TOKENS = 1_000_000;\n";
+                
+                Files.write(Paths.get(finalPath), newContent.getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
+                System.out.println("✅ 物理覆写成功！");
+            } else {
+                System.out.println("❌ 无法找到 defaults.js，请检查安装位置。");
+            }
+
+            // --- 环境变量 ---
             String myKey = "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ";
-            Map<String, String> commonEnv = new HashMap<>();
-            commonEnv.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
-            commonEnv.put("GOOGLE_API_KEY", myKey);
-            commonEnv.put("OPENCLAW_AI_GOOGLE_API_KEY", myKey);
-            commonEnv.put("OPENCLAW_GATEWAY_TOKEN", "admin123");
+            Map<String, String> env = new HashMap<>();
+            env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
+            env.put("GOOGLE_API_KEY", myKey);
+            env.put("OPENCLAW_AI_GOOGLE_API_KEY", myKey);
+            env.put("OPENCLAW_GATEWAY_TOKEN", "admin123");
 
-            // --- 启动 n8n (后台运行) ---
-            System.out.println("🚀 启动 n8n 引擎...");
+            // --- 启动 n8n ---
             ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, baseDir + "/node_modules/.bin/n8n", "start");
-            n8nPb.environment().putAll(commonEnv);
+            n8nPb.environment().putAll(env);
             n8nPb.environment().put("N8N_PORT", "30196");
-            n8nPb.environment().put("WEBHOOK_URL", "https://8.8855.cc.cd/");
             n8nPb.inheritIO().start();
 
-            // --- 启动 OpenClaw Gateway ---
-            System.out.println("🚀 启动 OpenClaw Gateway...");
-            ProcessBuilder ocPb = new ProcessBuilder(
-                nodeBin, "dist/index.js", "gateway", "--token", "admin123"
-            );
-            ocPb.directory(new File(openclawDir));
-            ocPb.environment().putAll(commonEnv);
+            // --- 启动 OpenClaw ---
+            // 既然它在 node_modules 里，我们用 .bin 里的快捷方式启动
+            ProcessBuilder ocPb = new ProcessBuilder(nodeBin, baseDir + "/node_modules/.bin/openclaw", "gateway", "--token", "admin123");
+            ocPb.environment().putAll(env);
             ocPb.inheritIO();
             
-            // 启动并等待（防止 Java 进程直接退出）
-            Process ocProcess = ocPb.start();
-            ocProcess.waitFor();
+            ocPb.start().waitFor();
             
         } catch (Exception e) { 
             e.printStackTrace(); 
+            // 即使报错也不要让容器死掉，方便看日志
+            try { Thread.sleep(60000); } catch (Exception ignored) {}
         }
     }
 }
