@@ -15,17 +15,15 @@ public class PaperBootstrap {
         String ocStateDir = baseDir + "/.openclaw";
 
         try {
-            System.out.println("🦞 [System-Fusion] 正在应用 2026 容器部署最佳实践...");
+            System.out.println("🦞 [System-Fusion] 正在修正 2026.2.3 核心参数偏差...");
 
-            // --- 0. 环境准备：强制标记 ---
+            // --- 0. 环境清理 ---
             File stateDir = new File(ocStateDir);
             if (!stateDir.exists()) stateDir.mkdirs();
             
-            // 写入 2026 版必须的初始化绕过标记
-            Files.write(Paths.get(ocStateDir, ".onboarded"), "true".getBytes(StandardCharsets.UTF_8));
-            
-            // 物理删除报错源：不生成任何 openclaw.json，全靠参数启动
+            // 彻底移除导致 Zod 报错的 JSON，只保留权限标记
             Files.deleteIfExists(Paths.get(ocStateDir, "openclaw.json"));
+            Files.write(Paths.get(ocStateDir, ".onboarded"), "true".getBytes(StandardCharsets.UTF_8));
 
             // --- 1. 启动 n8n ---
             ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, n8nBin, "start");
@@ -35,34 +33,36 @@ public class PaperBootstrap {
             n8nEnv.put("N8N_PORT", "30196");
             n8nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
             n8nPb.inheritIO().start();
-            System.out.println("✅ n8n 引擎已就绪");
 
-            // --- 2. 启动 OpenClaw (全参数+全环境变量模式) ---
-            // 根据社区资料：--address 和 --no-auth 是容器成功的关键
+            // --- 2. 启动 OpenClaw (参数精简化修正) ---
+            // 修正：将 --address 替换为 --host
+            // 增加：--public 确保 Telegram API 能够正常通信
             ProcessBuilder ocPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway", 
-                "--address", "0.0.0.0", // 允许容器内通信
+                "--host", "0.0.0.0", 
                 "--port", "18789", 
                 "--no-auth", 
+                "--public", // 2026版连接外网机器人的关键
                 "--force"
             );
             
             Map<String, String> ocEnv = ocPb.environment();
             ocEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
             ocEnv.put("OPENCLAW_STATE_DIR", ocStateDir);
-            ocEnv.put("CI", "true"); // 强制非交互模式
+            ocEnv.put("CI", "true");
 
-            // --- 2026.2.3 最新环境变量命名空间 ---
-            // Telegram 修复：使用 BOT_TOKEN 并开启 ENABLED
+            // --- 2026 环境变量终极修正 ---
+            // Telegram: 官方建议同时注入旧版和新版 Key 确保兼容
             ocEnv.put("OPENCLAW_TELEGRAM_ENABLED", "true");
             ocEnv.put("OPENCLAW_TELEGRAM_BOT_TOKEN", "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM");
+            ocEnv.put("TELEGRAM_BOT_TOKEN", "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM"); 
             
-            // AI 修复：使用专有的 GOOGLE 命名空间
+            // AI: 确保 Google Provider 被正确识别
             ocEnv.put("OPENCLAW_AI_PROVIDER", "google");
             ocEnv.put("OPENCLAW_AI_GOOGLE_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ");
 
             ocPb.inheritIO().start();
-            System.out.println("🚀 OpenClaw 已开启无配置模式，正在监听 Telegram...");
+            System.out.println("🚀 OpenClaw 指令已更名为 --host 并重新激活...");
 
             while (true) { Thread.sleep(60000); }
         } catch (Exception e) {
