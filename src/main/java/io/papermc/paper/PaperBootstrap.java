@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             String geminiKey = "AIzaSyCuuH84p_ARXnSA4J3AV96dl3MQmTZwj3g";  // ← 替换成新的 API Key
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
-            String pairingCode = "YQXDCTKV";
+            String pairingCode = "L4BTFFMR";  // ← 换成新的 Pairing Code
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
@@ -37,20 +37,15 @@ public class PaperBootstrap {
             runCommand(env, nodeBin, ocBin, "config", "set", 
                 "agents.defaults.model.primary", "google/gemini-2.0-flash");
 
-            // 3. 设置 gateway.mode = local
-            System.out.println("📝 设置 gateway.mode...");
-            runCommand(env, nodeBin, ocBin, "config", "set", 
-                "gateway.mode", "local");
-
-            // 4. 批准 Pairing Code
+            // 3. 批准 Pairing Code
             System.out.println("✅ 批准 Pairing Code...");
             runCommand(env, nodeBin, ocBin, "pairing", "approve", "telegram", pairingCode);
 
-            // 5. 运行 doctor --fix
+            // 4. 运行 doctor --fix
             System.out.println("🔧 运行 doctor --fix...");
             runCommand(env, nodeBin, ocBin, "doctor", "--fix");
 
-            // 6. 启动 n8n
+            // 5. 启动 n8n
             System.out.println("🚀 启动 n8n (端口 30196)...");
             ProcessBuilder n8nPb = new ProcessBuilder(
                 nodeBin, baseDir + "/node_modules/.bin/n8n", "start"
@@ -62,14 +57,13 @@ public class PaperBootstrap {
 
             Thread.sleep(3000);
 
-            // 7. 启动 Gateway（添加 --allow-unconfigured）
+            // 6. 启动 Gateway
             System.out.println("🚀 启动 OpenClaw Gateway + Telegram...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
                 "--port", "18789",
                 "--bind", "lan",
                 "--token", "admin123",
-                "--allow-unconfigured",
                 "--verbose"
             );
             gatewayPb.environment().putAll(env);
