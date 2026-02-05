@@ -11,32 +11,40 @@ public class PaperBootstrap {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
-            String geminiKey = "AIzaSyBcY0s8ZNZo3NKpuMFpF6jwaa1aTafSV4Y";
+            String geminiKey = "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
             env.put("HOME", baseDir);
             env.put("GOOGLE_API_KEY", geminiKey);
+            env.put("DEBUG", "*");  // 开启调试模式
 
-            // 0. 删除 Telegram Webhook
+            // 0. 先测试 API Key 是否有效
+            System.out.println("🧪 测试 Gemini API Key...");
+            testGeminiKey(geminiKey);
+
+            // 1. 删除 Telegram Webhook
             System.out.println("🗑️ 删除 Telegram Webhook...");
             URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.getResponseCode();
 
-            // 1. 配置 Telegram Bot Token
-            System.out.println("📝 配置 Telegram Bot...");
-            runCommand(env, nodeBin, ocBin, "config", "set", 
-                "channels.telegram.botToken", telegramToken);
+            // 2. 清除旧配置
+            System.out.println("🗑️ 清除旧配置...");
+            File configDir = new File(baseDir + "/.openclaw");
+            if (configDir.exists()) {
+                deleteDirectory(configDir);
+            }
 
-            // 2. Onboard with Gemini
+            // 3. 重新 onboard
             System.out.println("📝 运行 OpenClaw onboard (Gemini 2.0)...");
             ProcessBuilder onboardPb = new ProcessBuilder(
                 nodeBin, ocBin, "onboard",
                 "--non-interactive",
                 "--accept-risk",
+                "--reset",
                 "--mode", "local",
                 "--auth-choice", "gemini-api-key",
                 "--gemini-api-key", geminiKey,
@@ -53,20 +61,21 @@ public class PaperBootstrap {
             onboardPb.inheritIO();
             onboardPb.start().waitFor();
 
-            // 3. 设置模型为 Gemini 2.0
+            // 4. 配置 Telegram
+            System.out.println("📝 配置 Telegram Bot...");
+            runCommand(env, nodeBin, ocBin, "config", "set", 
+                "channels.telegram.botToken", telegramToken);
+
+            // 5. 设置模型
             System.out.println("📝 设置模型为 gemini-2.0-flash...");
             runCommand(env, nodeBin, ocBin, "config", "set", 
                 "agents.defaults.model.primary", "google/gemini-2.0-flash");
 
-            // 4. 批准 Pairing
-            System.out.println("✅ 批准 Pairing...");
-            runCommand(env, nodeBin, ocBin, "pairing", "approve", "telegram", "YQXDCTKV");
-
-            // 5. 运行 doctor --fix
+            // 6. 运行 doctor --fix
             System.out.println("🔧 运行 doctor --fix...");
             runCommand(env, nodeBin, ocBin, "doctor", "--fix");
 
-            // 6. 启动 n8n
+            // 7. 启动 n8n
             System.out.println("🚀 启动 n8n (端口 30196)...");
             ProcessBuilder n8nPb = new ProcessBuilder(
                 nodeBin, baseDir + "/node_modules/.bin/n8n", "start"
@@ -78,7 +87,7 @@ public class PaperBootstrap {
 
             Thread.sleep(3000);
 
-            // 7. 启动 Gateway
+            // 8. 启动 Gateway（带调试）
             System.out.println("🚀 启动 OpenClaw Gateway + Telegram...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
@@ -96,10 +105,53 @@ public class PaperBootstrap {
         }
     }
 
+    static void testGeminiKey(String key) {
+        try {
+            URL url = new URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + key);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setDoOutput(true);
+            
+            String body = "{\"contents\":[{\"parts\":[{\"text\":\"Hi\"}]}]}";
+            conn.getOutputStream().write(body.getBytes());
+            
+            int code = conn.getResponseCode();
+            System.out.println("   API 响应码: " + code);
+            
+            InputStream is = (code >= 400) ? conn.getErrorStream() : conn.getInputStream();
+            if (is != null) {
+                BufferedReader br = new BufferedReader(new InputStreamReader(is));
+                String line;
+                StringBuilder response = new StringBuilder();
+                while ((line = br.readLine()) != null) {
+                    response.append(line);
+                }
+                String resp = response.toString();
+                if (resp.length() > 200) {
+                    resp = resp.substring(0, 200) + "...";
+                }
+                System.out.println("   API 响应: " + resp);
+            }
+        } catch (Exception e) {
+            System.out.println("   API 测试失败: " + e.getMessage());
+        }
+    }
+
     static void runCommand(Map<String, String> env, String... cmd) throws Exception {
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.environment().putAll(env);
         pb.inheritIO();
         pb.start().waitFor();
+    }
+
+    static void deleteDirectory(File file) {
+        File[] contents = file.listFiles();
+        if (contents != null) {
+            for (File f : contents) {
+                deleteDirectory(f);
+            }
+        }
+        file.delete();
     }
 }
