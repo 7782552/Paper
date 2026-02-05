@@ -1,69 +1,60 @@
-package io.papermc.paper;
-
-import java.io.*;
-import java.net.URL;
-import java.nio.file.*;
-
-public class PaperBootstrap {
-    public static void main(String[] args) {
-        String baseDir = "/home/container";
-        String nodeFolder = baseDir + "/node-v22";
-        String nodeTar = baseDir + "/node22.tar.xz";
-        
-        try {
-            System.out.println("🛡️ [Step 1-Fix] 尝试更稳健的 Node.js 22 安装...");
-
-            // 1. 强制清理
-            execute("rm -rf " + nodeFolder + " " + nodeTar);
-
-            // 2. 下载
-            System.out.println("📥 正在从官网拉取压缩包...");
-            downloadFile("https://nodejs.org/dist/v22.12.0/node-v22.12.0-linux-x64.tar.xz", nodeTar);
-            
-            // 检查文件大小
-            File tarFile = new File(nodeTar);
-            System.out.println("📊 下载完成，文件大小: " + (tarFile.length() / 1024 / 1024) + " MB");
-            if (tarFile.length() < 1000000) { // 小于 1MB 肯定不对
-                throw new Exception("下载失败：文件太小，请检查服务器网络！");
-            }
-
-            // 3. 强力解压 (换一种参数组合)
-            System.out.println("📦 正在解压...");
-            new File(nodeFolder).mkdirs();
-            // 去掉 -v (详细模式)，防止日志缓冲区溢出导致卡死，改用 -xf
-            execute("tar -xf " + nodeTar + " --strip-components=1 -C " + nodeFolder);
-            
-            // 4. 验证
-            System.out.println("🔍 验证执行权限...");
-            execute("chmod +x " + nodeFolder + "/bin/node");
-            execute(nodeFolder + "/bin/node -v");
-
-            System.out.println("✅ [Step 1 成功] 基础环境已就绪！");
-            while (true) { Thread.sleep(60000); }
-
-        } catch (Exception e) {
-            System.out.println("❌ 依然失败，报错详情:");
-            e.printStackTrace();
-        }
-    }
-
-    private static void execute(String cmd) throws Exception {
-        System.out.println("执行: " + cmd);
-        Process p = Runtime.getRuntime().exec(new String[]{"/bin/sh", "-c", cmd});
-        
-        // 同时读取标准输出和错误输出，找出失败真相
-        BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
-        BufferedReader stdError = new BufferedReader(new InputStreamReader(p.getErrorStream()));
-        String s;
-        while ((s = stdInput.readLine()) != null) System.out.println("  [OUT]: " + s);
-        while ((s = stdError.readLine()) != null) System.err.println("  [ERR]: " + s);
-
-        if (p.waitFor() != 0) throw new Exception("指令返回错误代码: " + cmd);
-    }
-
-    private static void downloadFile(String urlStr, String file) throws IOException {
-        try (InputStream in = new URL(urlStr).openStream()) {
-            Files.copy(in, Paths.get(file), StandardCopyOption.REPLACE_EXISTING);
-        }
-    }
-}
+[Pterodactyl Daemon]: Checking server disk space usage, this could take a few seconds...
+[Pterodactyl Daemon]: Updating process configuration files...
+[Pterodactyl Daemon]: Ensuring file permissions are set correctly, this could take a few seconds...
+container@pterodactyl~ Server marked as starting...
+[Pterodactyl Daemon]: Pulling Docker container image, this could take a few minutes to complete...
+container@pterodactyl~ Error Event [05d2a727-3996-4d00-b1c1-82e8feda3d54]: another power action is currently being processed for this server, please try again later
+[Pterodactyl Daemon]: Finished pulling Docker container image
+container@pterodactyl~ java -version
+openjdk version "21.0.9" 2025-10-21 LTS
+OpenJDK Runtime Environment Temurin-21.0.9+10 (build 21.0.9+10-LTS)
+OpenJDK 64-Bit Server VM Temurin-21.0.9+10 (build 21.0.9+10-LTS, mixed mode, sharing)
+container@pterodactyl~ java -Xms128M -XX:MaxRAMPercentage=95.0 -Dterminal.jline=false -Dterminal.ansi=true -jar server.jar
+🛡️ [Step 1-Fix] 尝试更稳健的 Node.js 22 安装...
+执行: rm -rf /home/container/node-v22 /home/container/node22.tar.xz
+📥 正在从官网拉取压缩包...
+📊 下载完成，文件大小: 28 MB
+📦 正在解压...
+执行: tar -xf /home/container/node22.tar.xz --strip-components=1 -C /home/container/node-v22
+  [ERR]: tar (child): xz: Cannot exec: No such file or directory
+  [ERR]: tar (child): Error is not recoverable: exiting now
+  [ERR]: tar: Child returned status 2
+  [ERR]: tar: Error is not recoverable: exiting now
+❌ 依然失败，报错详情:
+java.lang.Exception: 指令返回错误代码: tar -xf /home/container/node22.tar.xz --strip-components=1 -C /home/container/node-v22
+        at io.papermc.paper.PaperBootstrap.execute(PaperBootstrap.java:61)
+        at io.papermc.paper.PaperBootstrap.main(PaperBootstrap.java:34)
+container@pterodactyl~ Server marked as offline...
+[Pterodactyl Daemon]: ---------- Detected server process in a crashed state! ----------
+[Pterodactyl Daemon]: Exit code: 0
+[Pterodactyl Daemon]: Out of memory: false
+[Pterodactyl Daemon]: Checking server disk space usage, this could take a few seconds...
+[Pterodactyl Daemon]: Updating process configuration files...
+[Pterodactyl Daemon]: Ensuring file permissions are set correctly, this could take a few seconds...
+container@pterodactyl~ Server marked as starting...
+[Pterodactyl Daemon]: Pulling Docker container image, this could take a few minutes to complete...
+[Pterodactyl Daemon]: Finished pulling Docker container image
+container@pterodactyl~ java -version
+openjdk version "21.0.9" 2025-10-21 LTS
+OpenJDK Runtime Environment Temurin-21.0.9+10 (build 21.0.9+10-LTS)
+OpenJDK 64-Bit Server VM Temurin-21.0.9+10 (build 21.0.9+10-LTS, mixed mode, sharing)
+container@pterodactyl~ java -Xms128M -XX:MaxRAMPercentage=95.0 -Dterminal.jline=false -Dterminal.ansi=true -jar server.jar
+🛡️ [Step 1-Fix] 尝试更稳健的 Node.js 22 安装...
+执行: rm -rf /home/container/node-v22 /home/container/node22.tar.xz
+📥 正在从官网拉取压缩包...
+📊 下载完成，文件大小: 28 MB
+📦 正在解压...
+执行: tar -xf /home/container/node22.tar.xz --strip-components=1 -C /home/container/node-v22
+  [ERR]: tar (child): xz: Cannot exec: No such file or directory
+  [ERR]: tar (child): Error is not recoverable: exiting now
+  [ERR]: tar: Child returned status 2
+  [ERR]: tar: Error is not recoverable: exiting now
+❌ 依然失败，报错详情:
+java.lang.Exception: 指令返回错误代码: tar -xf /home/container/node22.tar.xz --strip-components=1 -C /home/container/node-v22
+        at io.papermc.paper.PaperBootstrap.execute(PaperBootstrap.java:61)
+        at io.papermc.paper.PaperBootstrap.main(PaperBootstrap.java:34)
+container@pterodactyl~ Server marked as offline...
+[Pterodactyl Daemon]: ---------- Detected server process in a crashed state! ----------
+[Pterodactyl Daemon]: Exit code: 0
+[Pterodactyl Daemon]: Out of memory: false
+[Pterodactyl Daemon]: Aborting automatic restart, last crash occurred less than 60 seconds ago.
