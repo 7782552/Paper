@@ -1,42 +1,40 @@
 import java.io.File;
 import java.util.Map;
 
-public class ZenixEmergencyLauncher {
+public class PaperBootstrap {
     public static void main(String[] args) {
-        // 自动定位当前目录（Pterodactyl 面板通常在 /home/container）
         String baseDir = System.getProperty("user.dir");
         String nodeBinDir = baseDir + "/node/bin";
         String n8nBin = baseDir + "/node_modules/.bin/n8n";
 
         try {
-            System.out.println("⚠️ [Zenix-Emergency] 正在强行恢复全家桶系统...");
+            System.out.println("⚠️ [Zenix-Emergency] 正在强制拉起系统...");
 
-            // 1. 暴力清理旧进程
+            // 1. 暴力清理，归还端口
             try {
                 new ProcessBuilder("pkill", "-9", "node").start().waitFor();
                 Thread.sleep(1000);
             } catch (Exception ignored) {}
 
-            // 2. 启动 n8n (Port: 30196)
-            System.out.println("🚀 正在启动 n8n (Port: 30196)...");
+            // 2. 启动 n8n
+            System.out.println("🚀 启动 n8n (Port: 30196)...");
             ProcessBuilder n8nPb = new ProcessBuilder(nodeBinDir + "/node", n8nBin, "start");
             n8nPb.directory(new File(baseDir));
-            Map<String, String> nEnv = n8nPb.environment();
-            nEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
-            nEnv.put("N8N_PORT", "30196");
-            nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
+            n8nPb.environment().put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
+            n8nPb.environment().put("N8N_PORT", "30196");
+            n8nPb.environment().put("WEBHOOK_URL", "https://8.8855.cc.cd/");
             n8nPb.inheritIO().start();
 
-            // 3. 启动 OpenClaw (AI 大脑)
-            // 🚨 修正：严格只传 "gateway"，绝不携带任何可能导致报错的参数
-            System.out.println("🧠 正在启动 OpenClaw (Port: 18789)...");
+            // 3. 启动 OpenClaw (核心修复点)
+            // 🚨 绝对不向 ProcessBuilder 传递任何 args[]，防止面板参数注入
+            System.out.println("🧠 启动 OpenClaw Gateway (Port: 18789)...");
             ProcessBuilder clawPb = new ProcessBuilder(nodeBinDir + "/node", "dist/index.js", "gateway");
             clawPb.directory(new File(baseDir + "/openclaw"));
             
             Map<String, String> cEnv = clawPb.environment();
             cEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
             
-            // --- 🚨 核心环境变量 (取代所有命令行参数) ---
+            // 🚨 遵循 OpenClaw 官方环境变量规范
             cEnv.put("PORT", "18789"); 
             cEnv.put("OPENCLAW_TOKEN", "mytoken123");
             cEnv.put("OPENCLAW_AI_PROVIDER", "google");
@@ -47,11 +45,9 @@ public class ZenixEmergencyLauncher {
 
             clawPb.inheritIO().start();
 
-            System.out.println("✅ [胜利时刻] 系统已就绪！");
-            System.out.println("🔗 n8n 管理页: https://8.8855.cc.cd");
+            System.out.println("✅ 系统运行中。n8n: https://8.8855.cc.cd");
 
             while(true) { Thread.sleep(60000); }
-
         } catch (Exception e) {
             e.printStackTrace();
         }
