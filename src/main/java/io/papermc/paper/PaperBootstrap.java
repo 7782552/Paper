@@ -3,6 +3,7 @@ package io.papermc.paper;
 import java.io.*;
 import java.util.*;
 import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
@@ -11,11 +12,20 @@ public class PaperBootstrap {
         String nodeBinDir = new File(nodeBin).getParent();
         String n8nBin = baseDir + "/node_modules/.bin/n8n";
         String ocBin = baseDir + "/node_modules/.bin/openclaw";
+        String ocStateDir = baseDir + "/.openclaw";
 
         try {
-            System.out.println("🦞 [System-Fusion] 正在调用 OpenClaw 官方自动配置 (Onboard)...");
+            System.out.println("💎 [System-Fusion] 正在激活 Telegram 机器人：@claw_test_008_bot");
 
-            // --- 1. 启动 n8n (保持稳定) ---
+            // --- 0. 状态清理 ---
+            File stateDir = new File(ocStateDir);
+            if (!stateDir.exists()) stateDir.mkdirs();
+            // 必须删除旧 JSON，否则会报 Unrecognized key
+            Files.deleteIfExists(Paths.get(ocStateDir, "openclaw.json"));
+            // 写入已初始化标记
+            Files.write(Paths.get(ocStateDir, ".onboarded"), "true".getBytes(StandardCharsets.UTF_8));
+
+            // --- 1. 启动 n8n ---
             ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, n8nBin, "start");
             n8nPb.directory(new File(baseDir));
             Map<String, String> n8nEnv = n8nPb.environment();
@@ -23,37 +33,36 @@ public class PaperBootstrap {
             n8nEnv.put("N8N_PORT", "30196");
             n8nEnv.put("WEBHOOK_URL", "https://8.8855.cc.cd/");
             n8nPb.inheritIO().start();
+            System.out.println("✅ n8n 引擎已就绪");
 
-            // --- 2. 核心：执行官方自动配置 (Onboarding) ---
-            // 这一步会根据环境变量自动创建 openclaw.json，绝对不会报 Unrecognized key
-            System.out.println("⚙️ 正在执行官方静默初始化...");
-            ProcessBuilder onboardPb = new ProcessBuilder(
-                nodeBin, ocBin, "onboard", "--force", "--yes"
+            // --- 2. 启动 OpenClaw (使用 --allow-unconfigured 绕过配置检查) ---
+            // 针对 d84eb46 版本，不再传 --host，仅保留端口和豁免参数
+            ProcessBuilder ocPb = new ProcessBuilder(
+                nodeBin, ocBin, "gateway", 
+                "--allow-unconfigured", 
+                "--port", "18789"
             );
-            Map<String, String> obEnv = onboardPb.environment();
-            obEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
             
-            // 喂给自动配置程序的初始信息
-            obEnv.put("OPENCLAW_TELEGRAM_TOKEN", "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM");
-            obEnv.put("OPENCLAW_AI_GOOGLE_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ");
-            
-            // 等待自动配置完成
-            Process obProcess = onboardPb.inheritIO().start();
-            obProcess.waitFor(); 
-            System.out.println("✅ 官方自动配置已完成，文件已由系统生成");
-
-            // --- 3. 正式启动 Gateway ---
-            // 此时配置文件已经是由官方自己生成的了，格式绝对 100% 正确
-            ProcessBuilder ocPb = new ProcessBuilder(nodeBin, ocBin, "gateway");
             Map<String, String> ocEnv = ocPb.environment();
             ocEnv.put("PATH", nodeBinDir + ":" + System.getenv("PATH"));
+            ocEnv.put("OPENCLAW_STATE_DIR", ocStateDir);
             
-            // 启动时覆盖端口，确保 n8n 能连上
-            ocEnv.put("OPENCLAW_GATEWAY_PORT", "18789");
-            ocEnv.put("OPENCLAW_GATEWAY_HOST", "127.0.0.1");
+            // --- 核心配置：通过环境变量注入 ---
+            // 1. 基础运行模式
+            ocEnv.put("OPENCLAW_GATEWAY_MODE", "local");
+            ocEnv.put("OPENCLAW_GATEWAY_HOST", "0.0.0.0"); // 允许 n8n 连接
+            ocEnv.put("OPENCLAW_GATEWAY_AUTH", "false");
+
+            // 2. Telegram 配置 (你的新 Token)
+            ocEnv.put("OPENCLAW_TELEGRAM_ENABLED", "true");
+            ocEnv.put("OPENCLAW_TELEGRAM_BOT_TOKEN", "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM");
+            
+            // 3. AI 配置 (Gemini)
+            ocEnv.put("OPENCLAW_AI_PROVIDER", "google");
+            ocEnv.put("OPENCLAW_AI_GOOGLE_API_KEY", "AIzaSyBzv_a-Q9u2TF1FVh58DT0yOJQPEMfJtqQ");
 
             ocPb.inheritIO().start();
-            System.out.println("🚀 OpenClaw 已通过官方配置启动，Telegram 正在连接...");
+            System.out.println("🚀 OpenClaw 已开启「豁免模式」，正在建立与 Telegram 的长连接...");
 
             while (true) { Thread.sleep(60000); }
         } catch (Exception e) {
