@@ -11,7 +11,7 @@ public class PaperBootstrap {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
-            String geminiApiKey = "AIzaSyB_cCHb6nSws8C3UWaPI3Mg6M503kggX7Q";  // ← 替换这里
+            String geminiApiKey = "AIzaSyB_cCHb6nSws8C3UWaPI3Mg6M503kggX7Q";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String pairingCode = "NZHGKE5W";
 
@@ -27,7 +27,16 @@ public class PaperBootstrap {
             conn.setRequestMethod("GET");
             conn.getResponseCode();
 
-            // 1. 运行 onboard
+            // 1. 【关键】清理旧的 OpenClaw 配置（解决 anthropic 问题）
+            System.out.println("🧹 清理旧配置...");
+            File openclawDir = new File(baseDir + "/.openclaw");
+            if (openclawDir.exists()) {
+                deleteDirectory(openclawDir);
+                System.out.println("✅ 已删除旧的 .openclaw 目录");
+            }
+            Thread.sleep(500);
+
+            // 2. 运行 onboard 配置 Gemini
             System.out.println("📝 运行 onboard 配置 Gemini...");
             ProcessBuilder onboardPb = new ProcessBuilder(
                 nodeBin, ocBin, "onboard",
@@ -50,58 +59,63 @@ public class PaperBootstrap {
             onboardPb.inheritIO();
             onboardPb.start().waitFor();
 
-            // 2. 配置 Telegram
+            // 3. 配置 Telegram Bot Token
             System.out.println("📝 配置 Telegram Bot...");
             runCommand(env, nodeBin, ocBin, "config", "set", 
                 "channels.telegram.botToken", telegramToken);
 
-            // 3. 设置模型
+            // 4. 【关键】设置模型 - 不带 provider 前缀
             System.out.println("📝 设置模型 Gemini 2.0...");
             runCommand(env, nodeBin, ocBin, "config", "set", 
                 "agents.defaults.model.primary", "gemini-2.0-flash");
 
-            // 4. 批准 Pairing
+            // 5. 查看当前配置（调试用）
+            System.out.println("📋 查看当前配置...");
+            runCommand(env, nodeBin, ocBin, "config", "get");
+
+            // 6. 批准 Pairing Code
             System.out.println("✅ 批准 Pairing Code: " + pairingCode);
             runCommand(env, nodeBin, ocBin, "pairing", "approve", "telegram", pairingCode);
 
-            // 5. 运行 doctor --fix
+            // 7. 运行 doctor --fix
             System.out.println("🔧 运行 doctor --fix...");
             runCommand(env, nodeBin, ocBin, "doctor", "--fix");
 
-            // 6. 启动 n8n（彻底修复）
+            // 8. 启动 n8n
             System.out.println("🚀 启动 n8n (端口 30196)...");
-            
-            // 清理并重建 n8n 目录
             File n8nDir = new File(baseDir + "/.n8n");
             if (n8nDir.exists()) {
                 deleteDirectory(n8nDir);
             }
             Thread.sleep(500);
             n8nDir.mkdirs();
-            
+
             ProcessBuilder n8nPb = new ProcessBuilder(
-                nodeBin, baseDir + "/node_modules/.bin/n8n", "start"
+                nodeBin,
+                "--max-old-space-size=2048",
+                baseDir + "/node_modules/.bin/n8n",
+                "start"
             );
             n8nPb.environment().putAll(env);
             n8nPb.environment().put("N8N_PORT", "30196");
             n8nPb.environment().put("N8N_HOST", "0.0.0.0");
             n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
             n8nPb.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
-            n8nPb.environment().put("DB_TYPE", "sqlite");
-            n8nPb.environment().put("DB_SQLITE_DATABASE", baseDir + "/.n8n/database.sqlite");
             n8nPb.environment().put("N8N_DIAGNOSTICS_ENABLED", "false");
             n8nPb.environment().put("N8N_VERSION_NOTIFICATIONS_ENABLED", "false");
             n8nPb.environment().put("N8N_HIRING_BANNER_ENABLED", "false");
             n8nPb.environment().put("N8N_PERSONALIZATION_ENABLED", "false");
             n8nPb.environment().put("N8N_TEMPLATES_ENABLED", "false");
             n8nPb.environment().put("N8N_LICENSE_AUTO_RENEW_ENABLED", "false");
-            n8nPb.environment().put("N8N_HIDE_USAGE_PAGE", "true");
+            n8nPb.environment().put("N8N_PAYLOAD_SIZE_MAX", "64");
+            n8nPb.environment().put("EXECUTIONS_DATA_SAVE_ON_ERROR", "none");
+            n8nPb.environment().put("EXECUTIONS_DATA_SAVE_ON_SUCCESS", "none");
             n8nPb.inheritIO();
             n8nPb.start();
 
             Thread.sleep(5000);
 
-            // 7. 启动 Gateway
+            // 9. 启动 Gateway
             System.out.println("🚀 启动 OpenClaw Gateway + Telegram...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
