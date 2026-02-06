@@ -2,68 +2,71 @@ package io.papermc.paper;
 
 import java.io.*;
 import java.net.*;
+import java.util.Scanner;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🚀 增强版容器网络环境深度测试...\n");
+        System.out.println("🚀 正在启动纯 Java 环境网络连通性分析...\n");
 
-        // 1. 测试外部连通性 (使用 curl)
-        String[] curlTests = {
-            "curl -s -m 5 https://www.google.com -o /dev/null -w '%{http_code}'",
-            "curl -s -m 5 https://api.ipify.org",
-            "curl -s -m 5 https://www.youtube.com -o /dev/null -w '%{http_code}'"
-        };
-        String[] names = {"Google", "获取出口IP", "YouTube"};
+        // 1. 获取公网 IP (不依赖 curl)
+        System.out.print("🔍 [1/4] 正在获取公网出口 IP: ");
+        String publicIp = fetchUrlContent("https://api.ipify.org");
+        System.out.println(publicIp != null ? publicIp : "获取失败");
 
-        for (int i = 0; i < curlTests.length; i++) {
-            System.out.print("🔍 测试 " + names[i] + ": ");
-            executeCmd(curlTests[i]);
-        }
+        // 2. 测试国外站点连通性 (不依赖 curl)
+        testHttp("Google", "https://www.google.com");
+        testHttp("YouTube", "https://www.youtube.com");
 
-        // 2. 使用 Java 原生方法测试 DNS 和 Ping (解决 ping: not found 问题)
-        System.out.println("\n📡 测试 Java 原生网络连接 (不依赖系统 ping)...");
+        // 3. 使用 Java 原生方法模拟 Ping (不依赖 ping 命令)
+        System.out.print("📡 [3/4] 正在测试 8.8.8.8 的可达性 (Java Reachable): ");
         try {
-            String host = "8.8.8.8";
-            InetAddress address = InetAddress.getByName(host);
-            System.out.println("✅ DNS 解析成功: " + address.getHostAddress());
-            boolean reachable = address.isReachable(3000); // 尝试原生检测连通性
-            System.out.println("📶 " + host + " 可达性测试: " + (reachable ? "成功" : "失败 (受限)"));
+            InetAddress address = InetAddress.getByName("8.8.8.8");
+            boolean reachable = address.isReachable(3000); // 3秒超时
+            System.out.println(reachable ? "✅ 成功" : "❌ 失败 (可能受 ICMP 限制)");
         } catch (Exception e) {
-            System.out.println("❌ 原生网络测试失败: " + e.getMessage());
+            System.out.println("❌ 错误: " + e.getMessage());
         }
 
-        // 3. 【最重要】测试本地端口监听 (检查 30194 端口是否已启动)
-        System.out.println("\n🏠 测试本地节点端口监听 (30194)...");
-        testLocalPort(30194);
+        // 4. 【核心检测】检测节点端口 30194 是否已在本地开启
+        System.out.println("\n🏠 [4/4] 正在检测本地节点监听状态 (Port 30194)...");
+        checkLocalPort(30194);
 
-        System.out.println("\n✅ 测试流程结束，容器将保持运行 5 分钟以供观察日志...");
-        try { Thread.sleep(300000); } catch (Exception e) {}
+        System.out.println("\n✅ 所有测试已完成，容器将保持运行 60 秒供查看日志。");
+        try { Thread.sleep(60000); } catch (InterruptedException e) { }
     }
 
-    private static void executeCmd(String cmd) {
+    private static void testHttp(String name, String urlStr) {
+        System.out.print("🌐 [2/4] 测试 " + name + " 连通性: ");
         try {
-            ProcessBuilder pb = new ProcessBuilder("sh", "-c", cmd);
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.print(line + " ");
+            URL url = new URL(urlStr);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            int code = conn.getResponseCode();
+            System.out.println("✅ 成功 (HTTP " + code + ")");
+        } catch (Exception e) {
+            System.out.println("❌ 失败: " + e.getMessage());
+        }
+    }
+
+    private static String fetchUrlContent(String urlStr) {
+        try {
+            URL url = new URL(urlStr);
+            try (Scanner s = new Scanner(url.openStream())) {
+                return s.useDelimiter("\\A").hasNext() ? s.next() : null;
             }
-            int code = p.waitFor();
-            System.out.println("[退出码: " + code + "]");
-        } catch (Exception e) {
-            System.out.println("失败: " + e.getMessage());
-        }
+        } catch (Exception e) { return null; }
     }
 
-    private static void testLocalPort(int port) {
+    private static void checkLocalPort(int port) {
+        // 尝试作为客户端连接该端口
         try (Socket socket = new Socket()) {
-            // 尝试连接本地端口，看是否有服务在监听
-            socket.connect(new InetSocketAddress("127.0.0.1", port), 1000);
-            System.out.println("✅ 端口 " + port + " 状态: 【监听中】 (服务已就绪)");
+            socket.connect(new InetSocketAddress("127.0.0.1", port), 500);
+            System.out.println("   >>> 🟢 结果: 30194 端口【有服务正在监听】。");
+            System.out.println("   >>> 建议: 如果此处显示正常但手机连不上，请检查翼龙面板 Network 里的外部端口映射。");
         } catch (IOException e) {
-            System.out.println("❌ 端口 " + port + " 状态: 【未开放】 (sing-box 可能未启动或配置错误)");
+            System.out.println("   >>> 🔴 结果: 30194 端口【未检测到监听】。");
+            System.out.println("   >>> 原因: 你的节点程序 (sing-box) 可能崩溃了，或者根本没启动。");
         }
     }
 }
