@@ -1,201 +1,248 @@
 package io.papermc.paper;
 
 import java.io.*;
-import java.nio.file.*;
+import java.net.*;
 import java.util.*;
+import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("═".repeat(60));
-        System.out.println("🔍 OpenClaw 诊断工具");
-        System.out.println("═".repeat(60));
-        
-        String baseDir = "/home/container";
-        String nodeBin = baseDir + "/node-v22/bin/node";
-        String ocBin = baseDir + "/node_modules/.bin/openclaw";
-        
-        Map<String, String> env = new HashMap<>();
-        env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
-        env.put("HOME", baseDir);
-        
+        System.out.println("🦞 [OpenClaw] 正在配置...");
         try {
-            // 1. 检查 Node 版本
-            System.out.println("\n📌 [1] Node.js 版本:");
-            System.out.println("-".repeat(40));
-            runAndCapture(env, baseDir, nodeBin, "--version");
+            String baseDir = "/home/container";
+            String nodeBin = baseDir + "/node-v22/bin/node";
+            String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            // 2. 检查 OpenClaw 版本
-            System.out.println("\n📌 [2] OpenClaw 版本:");
-            System.out.println("-".repeat(40));
-            runAndCapture(env, baseDir, nodeBin, ocBin, "--version");
-            
-            // 3. 检查 openclaw 帮助
-            System.out.println("\n📌 [3] OpenClaw 可用命令:");
-            System.out.println("-".repeat(40));
-            runAndCapture(env, baseDir, nodeBin, ocBin, "--help");
-            
-            // 4. 检查 config 帮助
-            System.out.println("\n📌 [4] OpenClaw config 命令帮助:");
-            System.out.println("-".repeat(40));
-            runAndCapture(env, baseDir, nodeBin, ocBin, "config", "--help");
-            
-            // 5. 检查 pairing 帮助
-            System.out.println("\n📌 [5] OpenClaw pairing 命令帮助:");
-            System.out.println("-".repeat(40));
-            runAndCapture(env, baseDir, nodeBin, ocBin, "pairing", "--help");
-            
-            // 6. 检查 onboard 帮助
-            System.out.println("\n📌 [6] OpenClaw onboard 命令帮助:");
-            System.out.println("-".repeat(40));
-            runAndCapture(env, baseDir, nodeBin, ocBin, "onboard", "--help");
-            
-            // 7. 列出 .openclaw 目录内容
-            System.out.println("\n📌 [7] .openclaw 目录内容:");
-            System.out.println("-".repeat(40));
-            File openclawDir = new File(baseDir + "/.openclaw");
-            if (openclawDir.exists()) {
-                listDirectory(openclawDir, "");
-            } else {
-                System.out.println("   ❌ 目录不存在: " + openclawDir.getAbsolutePath());
-            }
-            
-            // 8. 读取配置文件
-            System.out.println("\n📌 [8] openclaw.json 配置文件内容:");
-            System.out.println("-".repeat(40));
+            String geminiApiKey = "AIzaSyCpolv3ZpSbdc9cTHlCqbURbdDhppxQ_90";
+            String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
+            String telegramUserId = "660059245";  // 你的 Telegram 用户 ID
+
+            Map<String, String> env = new HashMap<>();
+            env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
+            env.put("HOME", baseDir);
+            env.put("GEMINI_API_KEY", geminiApiKey);
+
+            // 0. 删除 Telegram Webhook
+            System.out.println("🗑️ 删除 Telegram Webhook...");
+            URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            System.out.println("   响应: " + conn.getResponseCode());
+
+            // 1. 检查配置文件是否存在
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
-            if (configFile.exists()) {
-                String content = new String(Files.readAllBytes(configFile.toPath()));
-                System.out.println(content);
-            } else {
-                System.out.println("   ❌ 配置文件不存在");
+            File openclawDir = new File(baseDir + "/.openclaw");
+            
+            if (!openclawDir.exists()) {
+                openclawDir.mkdirs();
+            }
+
+            // 2. 如果配置不存在，先运行 onboard 创建基础结构
+            if (!configFile.exists()) {
+                System.out.println("📝 首次运行 onboard...");
+                ProcessBuilder onboardPb = new ProcessBuilder(
+                    nodeBin, ocBin, "onboard",
+                    "--non-interactive",
+                    "--accept-risk",
+                    "--mode", "local",
+                    "--auth-choice", "gemini-api-key",
+                    "--gemini-api-key", geminiApiKey,
+                    "--gateway-port", "18789",
+                    "--gateway-bind", "lan",
+                    "--gateway-auth", "token",
+                    "--gateway-token", "admin123",
+                    "--skip-daemon",
+                    "--skip-channels",
+                    "--skip-skills",
+                    "--skip-health",
+                    "--skip-ui"
+                );
+                onboardPb.environment().putAll(env);
+                onboardPb.directory(new File(baseDir));
+                onboardPb.inheritIO();
+                onboardPb.start().waitFor();
+                Thread.sleep(2000);
+            }
+
+            // 3. 【关键修复】直接写入正确的配置文件
+            System.out.println("📝 写入正确的配置...");
+            String correctConfig = createCorrectConfig(geminiApiKey, telegramToken, telegramUserId);
+            Files.write(configFile.toPath(), correctConfig.getBytes());
+            System.out.println("✅ 配置文件已更新");
+
+            // 4. 验证配置
+            System.out.println("\n📋 当前配置:");
+            System.out.println(new String(Files.readAllBytes(configFile.toPath())));
+
+            // 5. 创建/更新 telegram-pairing.json 添加已批准用户
+            System.out.println("\n📝 设置 Telegram 用户预授权...");
+            File credentialsDir = new File(baseDir + "/.openclaw/credentials");
+            if (!credentialsDir.exists()) {
+                credentialsDir.mkdirs();
             }
             
-            // 9. 读取其他可能的配置文件
-            System.out.println("\n📌 [9] 其他配置文件:");
-            System.out.println("-".repeat(40));
-            String[] possibleConfigs = {
-                "/.openclaw/config.json",
-                "/.openclaw/settings.json",
-                "/.openclaw/channels.json",
-                "/.openclaw/auth.json"
-            };
-            for (String cfg : possibleConfigs) {
-                File f = new File(baseDir + cfg);
-                if (f.exists()) {
-                    System.out.println("\n   📄 " + cfg + ":");
-                    String content = new String(Files.readAllBytes(f.toPath()));
-                    System.out.println(content);
-                }
+            File pairingFile = new File(credentialsDir, "telegram-pairing.json");
+            String pairingJson = "{\n" +
+                "  \"approved\": {\n" +
+                "    \"" + telegramUserId + "\": {\n" +
+                "      \"userId\": " + telegramUserId + ",\n" +
+                "      \"approvedAt\": \"" + java.time.Instant.now().toString() + "\",\n" +
+                "      \"source\": \"bootstrap\"\n" +
+                "    }\n" +
+                "  },\n" +
+                "  \"pending\": {}\n" +
+                "}";
+            Files.write(pairingFile.toPath(), pairingJson.getBytes());
+            System.out.println("✅ 用户 " + telegramUserId + " 已预授权");
+
+            // 6. 运行 doctor 检查
+            System.out.println("\n🔧 运行 doctor...");
+            runCommand(env, baseDir, nodeBin, ocBin, "doctor");
+
+            // 7. 启动 n8n
+            System.out.println("\n🚀 启动 n8n (端口 30196)...");
+            File n8nDir = new File(baseDir + "/.n8n");
+            if (!n8nDir.exists()) {
+                n8nDir.mkdirs();
             }
+
+            ProcessBuilder n8nPb = new ProcessBuilder(
+                nodeBin,
+                "--max-old-space-size=2048",
+                baseDir + "/node_modules/.bin/n8n",
+                "start"
+            );
+            n8nPb.environment().putAll(env);
+            n8nPb.environment().put("N8N_PORT", "30196");
+            n8nPb.environment().put("N8N_HOST", "0.0.0.0");
+            n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
+            n8nPb.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
+            n8nPb.environment().put("N8N_DIAGNOSTICS_ENABLED", "false");
+            n8nPb.environment().put("N8N_VERSION_NOTIFICATIONS_ENABLED", "false");
+            n8nPb.environment().put("N8N_HIRING_BANNER_ENABLED", "false");
+            n8nPb.environment().put("N8N_PERSONALIZATION_ENABLED", "false");
+            n8nPb.environment().put("N8N_TEMPLATES_ENABLED", "false");
+            n8nPb.environment().put("N8N_LICENSE_AUTO_RENEW_ENABLED", "false");
+            n8nPb.environment().put("N8N_PAYLOAD_SIZE_MAX", "64");
+            n8nPb.environment().put("EXECUTIONS_DATA_SAVE_ON_ERROR", "none");
+            n8nPb.environment().put("EXECUTIONS_DATA_SAVE_ON_SUCCESS", "none");
+            n8nPb.directory(new File(baseDir));
+            n8nPb.inheritIO();
+            n8nPb.start();
+
+            System.out.println("⏳ 等待 n8n 启动...");
+            Thread.sleep(8000);
+
+            // 8. 启动 Gateway
+            System.out.println("\n🚀 启动 OpenClaw Gateway + Telegram...");
+            System.out.println("═".repeat(50));
+            System.out.println("📱 Telegram 用户 " + telegramUserId + " 已预授权");
+            System.out.println("🤖 模型: google/gemini-2.0-flash");
+            System.out.println("🌐 Gateway: ws://0.0.0.0:18789");
+            System.out.println("═".repeat(50));
             
-            // 10. 检查 npm 包信息
-            System.out.println("\n📌 [10] OpenClaw 包信息:");
-            System.out.println("-".repeat(40));
-            File packageJson = new File(baseDir + "/node_modules/openclaw/package.json");
-            if (packageJson.exists()) {
-                String content = new String(Files.readAllBytes(packageJson.toPath()));
-                // 只提取关键信息
-                System.out.println(content);
-            } else {
-                // 尝试其他路径
-                packageJson = new File(baseDir + "/node_modules/@anthropic-ai/claw/package.json");
-                if (packageJson.exists()) {
-                    String content = new String(Files.readAllBytes(packageJson.toPath()));
-                    System.out.println(content);
-                } else {
-                    System.out.println("   找不到 package.json");
-                }
-            }
-            
-            // 11. 列出 node_modules/.bin 目录
-            System.out.println("\n📌 [11] node_modules/.bin 可用命令:");
-            System.out.println("-".repeat(40));
-            File binDir = new File(baseDir + "/node_modules/.bin");
-            if (binDir.exists()) {
-                String[] bins = binDir.list();
-                if (bins != null) {
-                    Arrays.sort(bins);
-                    for (String bin : bins) {
-                        System.out.println("   - " + bin);
-                    }
-                }
-            }
-            
-            // 12. 运行 openclaw config list
-            System.out.println("\n📌 [12] OpenClaw 当前配置 (config list):");
-            System.out.println("-".repeat(40));
-            runAndCapture(env, baseDir, nodeBin, ocBin, "config", "list");
-            
-            // 13. 运行 openclaw doctor
-            System.out.println("\n📌 [13] OpenClaw Doctor 诊断:");
-            System.out.println("-".repeat(40));
-            runAndCapture(env, baseDir, nodeBin, ocBin, "doctor");
-            
-            // 14. 检查 pairing list
-            System.out.println("\n📌 [14] OpenClaw Pairing 列表:");
-            System.out.println("-".repeat(40));
-            runAndCapture(env, baseDir, nodeBin, ocBin, "pairing", "list");
-            
-            // 15. 环境变量
-            System.out.println("\n📌 [15] 相关环境变量:");
-            System.out.println("-".repeat(40));
-            String[] envVars = {"HOME", "PATH", "GEMINI_API_KEY", "NODE_ENV"};
-            for (String var : envVars) {
-                String val = System.getenv(var);
-                if (var.contains("KEY") || var.contains("TOKEN")) {
-                    val = val != null ? val.substring(0, Math.min(10, val.length())) + "..." : "null";
-                }
-                System.out.println("   " + var + " = " + val);
-            }
-            
-            System.out.println("\n" + "═".repeat(60));
-            System.out.println("✅ 诊断完成！请将以上所有输出发给我");
-            System.out.println("═".repeat(60));
-            
-            // 保持程序运行一会儿以便查看输出
-            Thread.sleep(300000); // 5分钟
-            
+            ProcessBuilder gatewayPb = new ProcessBuilder(
+                nodeBin, ocBin, "gateway",
+                "--port", "18789",
+                "--bind", "lan",
+                "--token", "admin123",
+                "--verbose"
+            );
+            gatewayPb.environment().putAll(env);
+            gatewayPb.directory(new File(baseDir));
+            gatewayPb.inheritIO();
+            gatewayPb.start().waitFor();
+
         } catch (Exception e) {
-            System.err.println("❌ 诊断出错: " + e.getMessage());
+            System.err.println("❌ 错误: " + e.getMessage());
             e.printStackTrace();
-            try {
-                Thread.sleep(300000);
-            } catch (InterruptedException ie) {}
         }
     }
-    
-    static void runAndCapture(Map<String, String> env, String workDir, String... cmd) {
-        try {
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.environment().putAll(env);
-            pb.directory(new File(workDir));
-            pb.redirectErrorStream(true);
-            
-            Process p = pb.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.println("   " + line);
-            }
-            p.waitFor();
-        } catch (Exception e) {
-            System.out.println("   ❌ 执行失败: " + e.getMessage());
-        }
+
+    /**
+     * 创建正确的配置文件
+     */
+    static String createCorrectConfig(String geminiApiKey, String telegramToken, String telegramUserId) {
+        return "{\n" +
+            "  \"meta\": {\n" +
+            "    \"lastTouchedVersion\": \"2026.2.3-1\",\n" +
+            "    \"lastTouchedAt\": \"" + java.time.Instant.now().toString() + "\"\n" +
+            "  },\n" +
+            "  \"wizard\": {\n" +
+            "    \"lastRunAt\": \"" + java.time.Instant.now().toString() + "\",\n" +
+            "    \"lastRunVersion\": \"2026.2.3-1\",\n" +
+            "    \"lastRunCommand\": \"bootstrap\",\n" +
+            "    \"lastRunMode\": \"local\"\n" +
+            "  },\n" +
+            "  \"auth\": {\n" +
+            "    \"profiles\": {\n" +
+            "      \"google:default\": {\n" +
+            "        \"provider\": \"google\",\n" +
+            "        \"mode\": \"api_key\",\n" +
+            "        \"apiKey\": \"" + geminiApiKey + "\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"agents\": {\n" +
+            "    \"defaults\": {\n" +
+            "      \"model\": {\n" +
+            "        \"primary\": \"google/gemini-2.0-flash\"\n" +
+            "      },\n" +
+            "      \"workspace\": \"/home/container/.openclaw/workspace\",\n" +
+            "      \"compaction\": {\n" +
+            "        \"mode\": \"safeguard\"\n" +
+            "      },\n" +
+            "      \"maxConcurrent\": 4,\n" +
+            "      \"subagents\": {\n" +
+            "        \"maxConcurrent\": 8\n" +
+            "      }\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"messages\": {\n" +
+            "    \"ackReactionScope\": \"group-mentions\"\n" +
+            "  },\n" +
+            "  \"commands\": {\n" +
+            "    \"native\": \"auto\",\n" +
+            "    \"nativeSkills\": \"auto\"\n" +
+            "  },\n" +
+            "  \"channels\": {\n" +
+            "    \"telegram\": {\n" +
+            "      \"dmPolicy\": \"allowlist\",\n" +
+            "      \"botToken\": \"" + telegramToken + "\",\n" +
+            "      \"groupPolicy\": \"allowlist\",\n" +
+            "      \"streamMode\": \"partial\",\n" +
+            "      \"allowlist\": [" + telegramUserId + "]\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"gateway\": {\n" +
+            "    \"port\": 18789,\n" +
+            "    \"mode\": \"local\",\n" +
+            "    \"bind\": \"lan\",\n" +
+            "    \"auth\": {\n" +
+            "      \"mode\": \"token\",\n" +
+            "      \"token\": \"admin123\"\n" +
+            "    },\n" +
+            "    \"tailscale\": {\n" +
+            "      \"mode\": \"off\",\n" +
+            "      \"resetOnExit\": false\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"plugins\": {\n" +
+            "    \"entries\": {\n" +
+            "      \"telegram\": {\n" +
+            "        \"enabled\": true\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
     }
-    
-    static void listDirectory(File dir, String indent) {
-        File[] files = dir.listFiles();
-        if (files != null) {
-            Arrays.sort(files);
-            for (File f : files) {
-                if (f.isDirectory()) {
-                    System.out.println(indent + "📁 " + f.getName() + "/");
-                    listDirectory(f, indent + "   ");
-                } else {
-                    long size = f.length();
-                    System.out.println(indent + "📄 " + f.getName() + " (" + size + " bytes)");
-                }
-            }
-        }
+
+    static void runCommand(Map<String, String> env, String workDir, String... cmd) throws Exception {
+        System.out.println("   执行: " + String.join(" ", Arrays.copyOfRange(cmd, 0, Math.min(cmd.length, 4))) + "...");
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.environment().putAll(env);
+        pb.directory(new File(workDir));
+        pb.inheritIO();
+        pb.start().waitFor();
     }
 }
