@@ -10,21 +10,19 @@ public class PaperBootstrap {
         String PASSWORD = "zenix2024";
         
         try {
-            System.out.println("🚀 部署 Hysteria2 稳定版节点...");
+            System.out.println("🚀 部署 Hysteria2 抗干扰版节点...");
             System.out.println("");
             
             // 检测服务器 IP
             System.out.println("🔍 检测服务器网络...");
             String serverIP = "node.zenix.sg";
-            String detectedIP = "";
             try {
                 URL ipv4 = new URL("https://api.ipify.org");
                 HttpURLConnection conn = (HttpURLConnection) ipv4.openConnection();
                 conn.setConnectTimeout(5000);
                 conn.setReadTimeout(5000);
                 BufferedReader r4 = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                detectedIP = r4.readLine();
-                System.out.println("📍 IPv4: " + detectedIP);
+                System.out.println("📍 IPv4: " + r4.readLine());
                 r4.close();
             } catch (Exception e) {
                 System.out.println("📍 IPv4: 检测失败");
@@ -68,8 +66,8 @@ public class PaperBootstrap {
                 System.out.println("📦 [2/3] 证书已存在 ✓");
             }
             
-            // 创建稳定版配置
-            System.out.println("📦 [3/3] 创建稳定版配置...");
+            // 创建抗干扰配置
+            System.out.println("📦 [3/3] 创建抗干扰配置...");
             
             String config = 
                 "listen: :" + PORT + "\n" +
@@ -82,23 +80,18 @@ public class PaperBootstrap {
                 "  type: password\n" +
                 "  password: " + PASSWORD + "\n" +
                 "\n" +
-                "# 保守带宽设置，提高稳定性\n" +
-                "bandwidth:\n" +
-                "  up: 50 mbps\n" +
-                "  down: 100 mbps\n" +
+                "# 不设置带宽，让客户端决定\n" +
+                "# bandwidth 删除，使用 Brutal 模式由客户端控制\n" +
                 "\n" +
-                "# 稳定性优化配置\n" +
+                "# 最小化 QUIC 配置，减少资源占用\n" +
                 "quic:\n" +
-                "  initStreamReceiveWindow: 4194304\n" +
-                "  maxStreamReceiveWindow: 8388608\n" +
-                "  initConnReceiveWindow: 8388608\n" +
-                "  maxConnReceiveWindow: 16777216\n" +
-                "  maxIdleTimeout: 120s\n" +
-                "  maxIncomingStreams: 256\n" +
+                "  initStreamReceiveWindow: 2097152\n" +
+                "  maxStreamReceiveWindow: 4194304\n" +
+                "  initConnReceiveWindow: 4194304\n" +
+                "  maxConnReceiveWindow: 8388608\n" +
+                "  maxIdleTimeout: 60s\n" +
+                "  maxIncomingStreams: 128\n" +
                 "  disablePathMTUDiscovery: true\n" +
-                "\n" +
-                "# 忽略客户端带宽设置\n" +
-                "ignoreClientBandwidth: true\n" +
                 "\n" +
                 "masquerade:\n" +
                 "  type: proxy\n" +
@@ -111,20 +104,22 @@ public class PaperBootstrap {
             // 显示信息
             System.out.println("");
             System.out.println("╔══════════════════════════════════════════════════════╗");
-            System.out.println("║     ✅ Hysteria2 稳定版节点部署完成！                ║");
+            System.out.println("║     ✅ Hysteria2 抗干扰版节点部署完成！              ║");
             System.out.println("╠══════════════════════════════════════════════════════╣");
             System.out.println("║  📍 地址: node.zenix.sg                              ║");
             System.out.println("║  📍 端口: " + PORT + "                                     ║");
             System.out.println("║  🔑 密码: " + PASSWORD + "                               ║");
-            System.out.println("║  🚄 带宽: ↑50 / ↓100 Mbps（稳定模式）                ║");
+            System.out.println("║  🛡️  模式: 抗干扰（低资源占用）                       ║");
             System.out.println("╚══════════════════════════════════════════════════════╝");
+            System.out.println("");
+            System.out.println("⚠️  客户端必须设置带宽！推荐: ↑30Mbps / ↓50Mbps");
             System.out.println("");
             
             System.out.println("=== 📱 v2rayN 导入链接 ===");
             System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1#Zenix-Hysteria2");
             System.out.println("");
             
-            System.out.println("=== 📱 Clash Meta 配置 ===");
+            System.out.println("=== 📱 Clash Meta 配置（重要！必须设置带宽）===");
             System.out.println("proxies:");
             System.out.println("  - name: Zenix-Hysteria2");
             System.out.println("    type: hysteria2");
@@ -132,16 +127,16 @@ public class PaperBootstrap {
             System.out.println("    port: " + PORT);
             System.out.println("    password: " + PASSWORD);
             System.out.println("    skip-cert-verify: true");
-            System.out.println("    up: \"50 Mbps\"");
-            System.out.println("    down: \"100 Mbps\"");
+            System.out.println("    up: \"30 Mbps\"      # 必须设置！");
+            System.out.println("    down: \"50 Mbps\"    # 必须设置！");
             System.out.println("");
             System.out.println("rules:");
             System.out.println("  - DOMAIN-SUFFIX,zenix.sg,DIRECT");
             System.out.println("  - MATCH,Zenix-Hysteria2");
             System.out.println("");
             
-            System.out.println("=== 📱 NekoBox 导入 ===");
-            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1#Zenix-Hysteria2");
+            System.out.println("=== 📱 NekoBox 配置 ===");
+            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1&up=30&down=50#Zenix-Hysteria2");
             System.out.println("");
             
             System.out.println("══════════════════════════════════════════════════════");
