@@ -3,6 +3,7 @@ package io.papermc.paper;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
@@ -13,7 +14,7 @@ public class PaperBootstrap {
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             String geminiApiKey = "AIzaSyB_cCHb6nSws8C3UWaPI3Mg6M503kggX7Q";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
-            String pairingCode = "4Y35NGYX";
+            String pairingCode = "NZHGKE5W";
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
@@ -63,10 +64,25 @@ public class PaperBootstrap {
             runCommand(env, nodeBin, ocBin, "config", "set", 
                 "channels.telegram.botToken", telegramToken);
 
-            // 4. 【修复】设置模型（必须带 google/ 前缀）
+            // 4. 【关键修复】直接修改配置文件设置正确的模型
             System.out.println("📝 设置模型 google/gemini-2.0-flash...");
-            runCommand(env, nodeBin, ocBin, "config", "set", 
-                "agents.defaults.model.primary", "google/gemini-2.0-flash");
+            File configFile = new File(baseDir + "/.openclaw/openclaw.json");
+            if (configFile.exists()) {
+                String content = new String(Files.readAllBytes(configFile.toPath()));
+                System.out.println("📋 修改前的配置：");
+                System.out.println(content);
+                
+                // 替换所有可能的模型配置格式
+                content = content.replace("\"gemini-2.0-flash\"", "\"google/gemini-2.0-flash\"");
+                content = content.replace("\"anthropic/gemini-2.0-flash\"", "\"google/gemini-2.0-flash\"");
+                content = content.replace("\"primary\":\"gemini-", "\"primary\":\"google/gemini-");
+                content = content.replace("\"primary\": \"gemini-", "\"primary\": \"google/gemini-");
+                
+                Files.write(configFile.toPath(), content.getBytes());
+                System.out.println("✅ 配置文件已更新");
+                System.out.println("📋 修改后的配置：");
+                System.out.println(new String(Files.readAllBytes(configFile.toPath())));
+            }
 
             // 5. 批准 Pairing Code
             System.out.println("✅ 批准 Pairing Code: " + pairingCode);
