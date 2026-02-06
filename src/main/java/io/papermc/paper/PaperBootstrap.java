@@ -2,6 +2,7 @@ package io.papermc.paper;
 
 import java.io.*;
 import java.net.*;
+import java.util.zip.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
@@ -37,7 +38,7 @@ public class PaperBootstrap {
                 System.out.println("📦 [1/3] Hysteria2 已存在 ✓");
             }
             
-            // ==================== Xray (更快的 Shadowsocks) ====================
+            // ==================== Xray ====================
             File xray = new File(baseDir + "/xray");
             if (!xray.exists()) {
                 System.out.println("📦 [2/3] 下载 Xray...");
@@ -45,9 +46,11 @@ public class PaperBootstrap {
                     "https://github.com/XTLS/Xray-core/releases/download/v1.8.24/Xray-linux-64.zip",
                     baseDir + "/xray.zip"
                 );
-                runCmd(baseDir, "unzip", "-o", "xray.zip", "xray");
+                System.out.println("   解压中...");
+                unzip(baseDir + "/xray.zip", baseDir);
                 runCmd(baseDir, "chmod", "+x", "xray");
                 new File(baseDir + "/xray.zip").delete();
+                System.out.println("   解压完成 ✓");
             } else {
                 System.out.println("📦 [2/3] Xray 已存在 ✓");
             }
@@ -101,7 +104,11 @@ public class PaperBootstrap {
                 "    rewriteHost: true\n";
             writeFile(baseDir + "/hy-config.yaml", hyConfig);
             
-            // Xray Shadowsocks 配置（高性能版）
+            // Xray Shadowsocks 配置
+            String ss2022Pass = java.util.Base64.getEncoder().encodeToString(
+                (PASSWORD + "12345678").getBytes()
+            ).substring(0, 22) + "==";
+            
             String xrayConfig = "{\n" +
                 "  \"log\": { \"loglevel\": \"warning\" },\n" +
                 "  \"inbounds\": [{\n" +
@@ -109,16 +116,13 @@ public class PaperBootstrap {
                 "    \"protocol\": \"shadowsocks\",\n" +
                 "    \"settings\": {\n" +
                 "      \"method\": \"2022-blake3-aes-128-gcm\",\n" +
-                "      \"password\": \"" + java.util.Base64.getEncoder().encodeToString(PASSWORD.getBytes()).substring(0, 22) + "==\",\n" +
+                "      \"password\": \"" + ss2022Pass + "\",\n" +
                 "      \"network\": \"tcp,udp\"\n" +
                 "    }\n" +
                 "  }],\n" +
                 "  \"outbounds\": [{ \"protocol\": \"freedom\" }]\n" +
                 "}\n";
             writeFile(baseDir + "/xray-config.json", xrayConfig);
-            
-            // 生成 SS 2022 密码
-            String ss2022Pass = java.util.Base64.getEncoder().encodeToString(PASSWORD.getBytes()).substring(0, 22) + "==";
             
             // 显示配置
             System.out.println("");
@@ -132,8 +136,7 @@ public class PaperBootstrap {
             System.out.println("┌──────────────────────────────────────────────────────────┐");
             System.out.println("│  🖥️  节点1: Hysteria2（电脑/安卓）                       │");
             System.out.println("├──────────────────────────────────────────────────────────┤");
-            System.out.println("│  协议: Hysteria2 (UDP) - 速度最快                        │");
-            System.out.println("│  端口: " + PORT + "                                            │");
+            System.out.println("│  协议: Hysteria2 (UDP)                                   │");
             System.out.println("│  密码: " + PASSWORD + "                                      │");
             System.out.println("│                                                          │");
             System.out.println("│  v2rayN 导入:                                            │");
@@ -143,16 +146,15 @@ public class PaperBootstrap {
             System.out.println("┌──────────────────────────────────────────────────────────┐");
             System.out.println("│  📱 节点2: Shadowsocks 2022（苹果手机）                  │");
             System.out.println("├──────────────────────────────────────────────────────────┤");
-            System.out.println("│  协议: Shadowsocks 2022 (TCP/UDP) - 新协议更快           │");
-            System.out.println("│  端口: " + PORT + "                                            │");
-            System.out.println("│  密码: " + ss2022Pass + "               │");
+            System.out.println("│  协议: Shadowsocks 2022 (TCP/UDP)                        │");
+            System.out.println("│  密码: " + ss2022Pass + "                  │");
             System.out.println("│  加密: 2022-blake3-aes-128-gcm                           │");
             System.out.println("│                                                          │");
             System.out.println("│  Shadowrocket 配置:                                      │");
             System.out.println("│    类型: Shadowsocks                                     │");
             System.out.println("│    地址: node.zenix.sg                                   │");
             System.out.println("│    端口: " + PORT + "                                          │");
-            System.out.println("│    密码: " + ss2022Pass + "             │");
+            System.out.println("│    密码: " + ss2022Pass + "                │");
             System.out.println("│    加密: 2022-blake3-aes-128-gcm                         │");
             System.out.println("└──────────────────────────────────────────────────────────┘");
             System.out.println("");
@@ -181,7 +183,7 @@ public class PaperBootstrap {
             Thread.sleep(2000);
             System.out.println("✅ Hysteria2 已启动 (UDP:" + PORT + ")");
             
-            // 启动 Xray Shadowsocks（前台）
+            // 启动 Xray（前台）
             System.out.println("✅ Shadowsocks 2022 启动中 (TCP/UDP:" + PORT + ")...");
             System.out.println("");
             
@@ -195,6 +197,29 @@ public class PaperBootstrap {
         } catch (Exception e) {
             System.out.println("❌ 部署失败: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+    
+    // Java 解压 ZIP 文件
+    static void unzip(String zipFile, String destDir) throws Exception {
+        byte[] buffer = new byte[8192];
+        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(zipFile))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                File newFile = new File(destDir, entry.getName());
+                if (entry.isDirectory()) {
+                    newFile.mkdirs();
+                } else {
+                    new File(newFile.getParent()).mkdirs();
+                    try (FileOutputStream fos = new FileOutputStream(newFile)) {
+                        int len;
+                        while ((len = zis.read(buffer)) > 0) {
+                            fos.write(buffer, 0, len);
+                        }
+                    }
+                }
+                zis.closeEntry();
+            }
         }
     }
     
