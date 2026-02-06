@@ -1,66 +1,40 @@
 package io.papermc.paper;
 
 import java.io.*;
-import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🚀 启动 Shadowsocks 高速节点...");
-        try {
-            String baseDir = "/home/container";
-            String xrayDir = baseDir + "/xray";
-            
-            String host = "node.zenix.sg";
-            int port = 30194;
-            String password = "admin123456";
-            String method = "chacha20-ietf-poly1305";
-            
-            new File(xrayDir).mkdirs();
-            File xrayFile = new File(xrayDir + "/xray");
-            xrayFile.setExecutable(true);
-            
-            String config = "{\n" +
-                "  \"log\": { \"loglevel\": \"warning\" },\n" +
-                "  \"inbounds\": [{\n" +
-                "    \"listen\": \"0.0.0.0\",\n" +
-                "    \"port\": " + port + ",\n" +
-                "    \"protocol\": \"shadowsocks\",\n" +
-                "    \"settings\": {\n" +
-                "      \"method\": \"" + method + "\",\n" +
-                "      \"password\": \"" + password + "\",\n" +
-                "      \"network\": \"tcp,udp\"\n" +
-                "    }\n" +
-                "  }],\n" +
-                "  \"outbounds\": [{ \"protocol\": \"freedom\" }]\n" +
-                "}";
-            
-            try (FileWriter fw = new FileWriter(xrayDir + "/config.json")) {
-                fw.write(config);
+        System.out.println("🧪 测试容器网络出口...\n");
+        
+        String[] tests = {
+            "curl -s -m 10 https://www.google.com -o /dev/null -w '%{http_code}'",
+            "curl -s -m 10 https://api.ipify.org",
+            "curl -s -m 10 https://www.youtube.com -o /dev/null -w '%{http_code}'",
+            "ping -c 3 8.8.8.8"
+        };
+        
+        String[] names = {
+            "Google",
+            "获取出口IP",
+            "YouTube", 
+            "Ping 8.8.8.8"
+        };
+        
+        for (int i = 0; i < tests.length; i++) {
+            System.out.println("测试 " + names[i] + "...");
+            try {
+                ProcessBuilder pb = new ProcessBuilder("sh", "-c", tests[i]);
+                pb.inheritIO();
+                int code = pb.start().waitFor();
+                System.out.println("退出码: " + code + "\n");
+            } catch (Exception e) {
+                System.out.println("失败: " + e.getMessage() + "\n");
             }
-            
-            // SS 链接
-            String ssLink = "ss://" + Base64.getEncoder().encodeToString(
-                (method + ":" + password).getBytes()
-            ) + "@" + host + ":" + port + "#SS-HighSpeed";
-            
-            System.out.println("\n========================================");
-            System.out.println("✅ Shadowsocks 节点已启动");
-            System.out.println("========================================");
-            System.out.println("📱 连接链接:\n" + ssLink);
-            System.out.println("\n📋 手动配置:");
-            System.out.println("   地址: " + host);
-            System.out.println("   端口: " + port);
-            System.out.println("   密码: " + password);
-            System.out.println("   加密: " + method);
-            System.out.println("========================================\n");
-            
-            ProcessBuilder xrayPb = new ProcessBuilder(xrayDir + "/xray", "run", "-c", xrayDir + "/config.json");
-            xrayPb.directory(new File(xrayDir));
-            xrayPb.inheritIO();
-            xrayPb.start().waitFor();
-
-        } catch (Exception e) {
-            e.printStackTrace();
         }
+        
+        System.out.println("测试完成！");
+        
+        // 保持运行
+        try { Thread.sleep(60000); } catch (Exception e) {}
     }
 }
