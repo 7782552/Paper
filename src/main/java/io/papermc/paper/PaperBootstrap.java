@@ -2,7 +2,6 @@ package io.papermc.paper;
 
 import java.io.*;
 import java.net.*;
-import java.util.*;
 import java.util.concurrent.*;
 
 public class PaperBootstrap {
@@ -11,24 +10,23 @@ public class PaperBootstrap {
     static final String PASSWORD = "zenix2024";
     
     public static void main(String[] args) {
-        System.out.println("🚀 正在启动代理节点...");
+        System.out.println("🚀 正在启动 SOCKS5 代理节点...");
         System.out.println("📍 地址: node.zenix.sg:" + PORT);
         System.out.println("🔑 用户名: " + USERNAME);
         System.out.println("🔑 密码: " + PASSWORD);
         System.out.println("");
-        System.out.println("=== Clash 配置 ===");
-        System.out.println("- name: Zenix-Node");
-        System.out.println("  type: http");
-        System.out.println("  server: node.zenix.sg");
-        System.out.println("  port: " + PORT);
-        System.out.println("  username: " + USERNAME);
-        System.out.println("  password: " + PASSWORD);
+        System.out.println("=== v2rayN 配置 ===");
+        System.out.println("协议: socks");
+        System.out.println("地址: node.zenix.sg");
+        System.out.println("端口: " + PORT);
+        System.out.println("用户名: " + USERNAME);
+        System.out.println("密码: " + PASSWORD);
         System.out.println("");
         
         ExecutorService pool = Executors.newCachedThreadPool();
         
         try (ServerSocket server = new ServerSocket(PORT, 50, InetAddress.getByName("0.0.0.0"))) {
-            System.out.println("✅ 代理服务器已启动，监听端口 " + PORT);
+            System.out.println("✅ SOCKS5 代理服务器已启动，监听端口 " + PORT);
             
             while (true) {
                 Socket client = server.accept();
@@ -41,166 +39,125 @@ public class PaperBootstrap {
     
     static void handleClient(Socket client) {
         try {
-            client.setSoTimeout(30000);
+            client.setSoTimeout(60000);
             InputStream in = client.getInputStream();
             OutputStream out = client.getOutputStream();
             
-            // 读取请求头
-            BufferedReader reader = new BufferedReader(new InputStreamReader(in));
-            String firstLine = reader.readLine();
-            if (firstLine == null) {
-                client.close();
-                return;
-            }
+            // SOCKS5 握手
+            int version = in.read();
+            if (version != 5) { client.close(); return; }
             
-            Map<String, String> headers = new HashMap<>();
-            String line;
-            while ((line = reader.readLine()) != null && !line.isEmpty()) {
-                int idx = line.indexOf(':');
-                if (idx > 0) {
-                    headers.put(line.substring(0, idx).trim().toLowerCase(), 
-                               line.substring(idx + 1).trim());
-                }
-            }
+            int nmethods = in.read();
+            byte[] methods = new byte[nmethods];
+            in.read(methods);
             
-            // 验证密码
-            String auth = headers.get("proxy-authorization");
-            if (!checkAuth(auth)) {
-                String response = "HTTP/1.1 407 Proxy Authentication Required\r\n" +
-                                  "Proxy-Authenticate: Basic realm=\"Proxy\"\r\n" +
-                                  "Content-Length: 0\r\n\r\n";
-                out.write(response.getBytes());
+            // 要求用户名密码认证
+            out.write(new byte[]{0x05, 0x02});
+            out.flush();
+            
+            // 认证
+            int authVersion = in.read();
+            if (authVersion != 1) { client.close(); return; }
+            
+            int ulen = in.read();
+            byte[] uname = new byte[ulen];
+            in.read(uname);
+            
+            int plen = in.read();
+            byte[] passwd = new byte[plen];
+            in.read(passwd);
+            
+            String u = new String(uname);
+            String p = new String(passwd);
+            
+            if (!u.equals(USERNAME) || !p.equals(PASSWORD)) {
+                out.write(new byte[]{0x01, 0x01}); // 认证失败
                 out.flush();
                 client.close();
                 return;
             }
             
-            String[] parts = firstLine.split(" ");
-            String method = parts[0];
-            String target = parts[1];
+            out.write(new byte[]{0x01, 0x00}); // 认证成功
+            out.flush();
             
-            if ("CONNECT".equalsIgnoreCase(method)) {
-                // HTTPS 隧道
-                handleConnect(client, target, out);
+            // 读取请求
+            int ver = in.read();
+            int cmd = in.read();
+            int rsv = in.read();
+            int atyp = in.read();
+            
+            String host;
+            if (atyp == 1) { // IPv4
+                byte[] addr = new byte[4];
+                in.read(addr);
+                host = InetAddress.getByAddress(addr).getHostAddress();
+            } else if (atyp == 3) { // 域名
+                int len = in.read();
+                byte[] addr = new byte[len];
+                in.read(addr);
+                host = new String(addr);
+            } else if (atyp == 4) { // IPv6
+                byte[] addr = new byte[16];
+                in.read(addr);
+                host = InetAddress.getByAddress(addr).getHostAddress();
             } else {
-                // HTTP 代理
-                handleHttp(client, method, target, headers, in, out);
+                client.close();
+                return;
             }
             
+            int port = (in.read() << 8) | in.read();
+            
+            if (cmd != 1) { // 只支持 CONNECT
+                out.write(new byte[]{0x05, 0x07, 0x00, 0x01, 0,0,0,0, 0,0});
+                client.close();
+                return;
+            }
+            
+            // 连接目标
+            Socket remote;
+            try {
+                remote = new Socket();
+                remote.connect(new InetSocketAddress(host, port), 10000);
+                remote.setSoTimeout(60000);
+            } catch (Exception e) {
+                out.write(new byte[]{0x05, 0x04, 0x00, 0x01, 0,0,0,0, 0,0});
+                client.close();
+                return;
+            }
+            
+            // 发送成功响应
+            byte[] response = new byte[]{0x05, 0x00, 0x00, 0x01, 0,0,0,0, 0,0};
+            out.write(response);
+            out.flush();
+            
+            // 双向转发
+            Thread t1 = new Thread(() -> {
+                try { pipe(client.getInputStream(), remote.getOutputStream()); } 
+                catch (Exception e) {}
+                try { remote.close(); client.close(); } catch (Exception e) {}
+            });
+            
+            Thread t2 = new Thread(() -> {
+                try { pipe(remote.getInputStream(), client.getOutputStream()); } 
+                catch (Exception e) {}
+                try { remote.close(); client.close(); } catch (Exception e) {}
+            });
+            
+            t1.start();
+            t2.start();
+            t1.join(300000);
+            
         } catch (Exception e) {
-            // 静默处理
         } finally {
             try { client.close(); } catch (Exception e) {}
         }
     }
     
-    static boolean checkAuth(String auth) {
-        if (auth == null) return false;
-        try {
-            String encoded = auth.replace("Basic ", "").trim();
-            String decoded = new String(Base64.getDecoder().decode(encoded));
-            return decoded.equals(USERNAME + ":" + PASSWORD);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-    
-    static void handleConnect(Socket client, String target, OutputStream clientOut) {
-        try {
-            String[] hp = target.split(":");
-            String host = hp[0];
-            int port = hp.length > 1 ? Integer.parseInt(hp[1]) : 443;
-            
-            Socket remote = new Socket();
-            remote.connect(new InetSocketAddress(host, port), 10000);
-            remote.setSoTimeout(30000);
-            
-            // 发送连接成功
-            String response = "HTTP/1.1 200 Connection Established\r\n\r\n";
-            clientOut.write(response.getBytes());
-            clientOut.flush();
-            
-            // 双向转发
-            ExecutorService executor = Executors.newFixedThreadPool(2);
-            
-            executor.submit(() -> {
-                try {
-                    pipe(client.getInputStream(), remote.getOutputStream());
-                } catch (Exception e) {}
-            });
-            
-            executor.submit(() -> {
-                try {
-                    pipe(remote.getInputStream(), client.getOutputStream());
-                } catch (Exception e) {}
-            });
-            
-            executor.shutdown();
-            executor.awaitTermination(5, TimeUnit.MINUTES);
-            
-            remote.close();
-            
-        } catch (Exception e) {
-            try {
-                String response = "HTTP/1.1 502 Bad Gateway\r\n\r\n";
-                clientOut.write(response.getBytes());
-            } catch (Exception ex) {}
-        }
-    }
-    
-    static void handleHttp(Socket client, String method, String target, 
-                           Map<String, String> headers, InputStream clientIn, 
-                           OutputStream clientOut) {
-        try {
-            URL url = new URL(target);
-            String host = url.getHost();
-            int port = url.getPort() > 0 ? url.getPort() : 80;
-            
-            Socket remote = new Socket();
-            remote.connect(new InetSocketAddress(host, port), 10000);
-            remote.setSoTimeout(30000);
-            
-            OutputStream remoteOut = remote.getOutputStream();
-            InputStream remoteIn = remote.getInputStream();
-            
-            // 构建请求
-            String path = url.getPath();
-            if (url.getQuery() != null) path += "?" + url.getQuery();
-            if (path.isEmpty()) path = "/";
-            
-            StringBuilder req = new StringBuilder();
-            req.append(method).append(" ").append(path).append(" HTTP/1.1\r\n");
-            req.append("Host: ").append(host).append("\r\n");
-            
-            for (Map.Entry<String, String> h : headers.entrySet()) {
-                if (!h.getKey().equals("proxy-authorization") && 
-                    !h.getKey().equals("proxy-connection")) {
-                    req.append(h.getKey()).append(": ").append(h.getValue()).append("\r\n");
-                }
-            }
-            req.append("\r\n");
-            
-            remoteOut.write(req.toString().getBytes());
-            remoteOut.flush();
-            
-            // 转发响应
-            pipe(remoteIn, clientOut);
-            
-            remote.close();
-            
-        } catch (Exception e) {
-            try {
-                String response = "HTTP/1.1 502 Bad Gateway\r\n\r\n";
-                clientOut.write(response.getBytes());
-            } catch (Exception ex) {}
-        }
-    }
-    
     static void pipe(InputStream in, OutputStream out) throws IOException {
-        byte[] buffer = new byte[8192];
+        byte[] buf = new byte[8192];
         int len;
-        while ((len = in.read(buffer)) != -1) {
-            out.write(buffer, 0, len);
+        while ((len = in.read(buf)) != -1) {
+            out.write(buf, 0, len);
             out.flush();
         }
     }
