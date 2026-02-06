@@ -1,185 +1,201 @@
 package io.papermc.paper;
 
 import java.io.*;
-import java.net.*;
+import java.nio.file.*;
+import java.util.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
+        System.out.println("═".repeat(60));
+        System.out.println("🔍 OpenClaw 诊断工具");
+        System.out.println("═".repeat(60));
+        
         String baseDir = "/home/container";
-        int PORT = 30194;
-        String PASSWORD = "zenix2024";
+        String nodeBin = baseDir + "/node-v22/bin/node";
+        String ocBin = baseDir + "/node_modules/.bin/openclaw";
+        
+        Map<String, String> env = new HashMap<>();
+        env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
+        env.put("HOME", baseDir);
         
         try {
-            System.out.println("🚀 部署 Hysteria2 极速版（2人专用）...");
-            System.out.println("");
+            // 1. 检查 Node 版本
+            System.out.println("\n📌 [1] Node.js 版本:");
+            System.out.println("-".repeat(40));
+            runAndCapture(env, baseDir, nodeBin, "--version");
             
-            String serverIP = "node.zenix.sg";
-            try {
-                URL ipv4 = new URL("https://api.ipify.org");
-                HttpURLConnection conn = (HttpURLConnection) ipv4.openConnection();
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-                BufferedReader r4 = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                System.out.println("📍 IPv4: " + r4.readLine());
-                r4.close();
-            } catch (Exception e) {
-                System.out.println("📍 IPv4: 检测失败");
-            }
-            System.out.println("");
+            // 2. 检查 OpenClaw 版本
+            System.out.println("\n📌 [2] OpenClaw 版本:");
+            System.out.println("-".repeat(40));
+            runAndCapture(env, baseDir, nodeBin, ocBin, "--version");
             
-            File hysteria = new File(baseDir + "/hysteria");
-            if (!hysteria.exists()) {
-                System.out.println("📦 [1/3] 下载 Hysteria2...");
-                downloadFile(
-                    "https://github.com/apernet/hysteria/releases/download/app%2Fv2.6.1/hysteria-linux-amd64",
-                    baseDir + "/hysteria"
-                );
-                runCmd(baseDir, "chmod", "+x", "hysteria");
+            // 3. 检查 openclaw 帮助
+            System.out.println("\n📌 [3] OpenClaw 可用命令:");
+            System.out.println("-".repeat(40));
+            runAndCapture(env, baseDir, nodeBin, ocBin, "--help");
+            
+            // 4. 检查 config 帮助
+            System.out.println("\n📌 [4] OpenClaw config 命令帮助:");
+            System.out.println("-".repeat(40));
+            runAndCapture(env, baseDir, nodeBin, ocBin, "config", "--help");
+            
+            // 5. 检查 pairing 帮助
+            System.out.println("\n📌 [5] OpenClaw pairing 命令帮助:");
+            System.out.println("-".repeat(40));
+            runAndCapture(env, baseDir, nodeBin, ocBin, "pairing", "--help");
+            
+            // 6. 检查 onboard 帮助
+            System.out.println("\n📌 [6] OpenClaw onboard 命令帮助:");
+            System.out.println("-".repeat(40));
+            runAndCapture(env, baseDir, nodeBin, ocBin, "onboard", "--help");
+            
+            // 7. 列出 .openclaw 目录内容
+            System.out.println("\n📌 [7] .openclaw 目录内容:");
+            System.out.println("-".repeat(40));
+            File openclawDir = new File(baseDir + "/.openclaw");
+            if (openclawDir.exists()) {
+                listDirectory(openclawDir, "");
             } else {
-                System.out.println("📦 [1/3] Hysteria2 已存在 ✓");
+                System.out.println("   ❌ 目录不存在: " + openclawDir.getAbsolutePath());
             }
             
-            File cert = new File(baseDir + "/server.crt");
-            if (!cert.exists()) {
-                System.out.println("📦 [2/3] 生成证书...");
-                try {
-                    ProcessBuilder pb = new ProcessBuilder(
-                        "openssl", "req", "-x509", "-nodes", "-newkey", "rsa:2048",
-                        "-keyout", baseDir + "/server.key",
-                        "-out", baseDir + "/server.crt",
-                        "-days", "3650",
-                        "-subj", "/CN=" + serverIP
-                    );
-                    pb.directory(new File(baseDir));
-                    pb.inheritIO();
-                    pb.start().waitFor();
-                } catch (Exception e) {
-                    generateCertWithKeytool(baseDir, serverIP);
+            // 8. 读取配置文件
+            System.out.println("\n📌 [8] openclaw.json 配置文件内容:");
+            System.out.println("-".repeat(40));
+            File configFile = new File(baseDir + "/.openclaw/openclaw.json");
+            if (configFile.exists()) {
+                String content = new String(Files.readAllBytes(configFile.toPath()));
+                System.out.println(content);
+            } else {
+                System.out.println("   ❌ 配置文件不存在");
+            }
+            
+            // 9. 读取其他可能的配置文件
+            System.out.println("\n📌 [9] 其他配置文件:");
+            System.out.println("-".repeat(40));
+            String[] possibleConfigs = {
+                "/.openclaw/config.json",
+                "/.openclaw/settings.json",
+                "/.openclaw/channels.json",
+                "/.openclaw/auth.json"
+            };
+            for (String cfg : possibleConfigs) {
+                File f = new File(baseDir + cfg);
+                if (f.exists()) {
+                    System.out.println("\n   📄 " + cfg + ":");
+                    String content = new String(Files.readAllBytes(f.toPath()));
+                    System.out.println(content);
                 }
-            } else {
-                System.out.println("📦 [2/3] 证书已存在 ✓");
             }
             
-            System.out.println("📦 [3/3] 创建极速配置...");
-            String config = 
-                "listen: :" + PORT + "\n" +
-                "\n" +
-                "tls:\n" +
-                "  cert: /home/container/server.crt\n" +
-                "  key: /home/container/server.key\n" +
-                "\n" +
-                "auth:\n" +
-                "  type: password\n" +
-                "  password: " + PASSWORD + "\n" +
-                "\n" +
-                "# 极速带宽（不限制）\n" +
-                "# 不设置 bandwidth，让客户端决定速度\n" +
-                "\n" +
-                "# 2人专用极速配置（512MB内存优化）\n" +
-                "quic:\n" +
-                "  initStreamReceiveWindow: 2097152\n" +    // 2MB
-                "  maxStreamReceiveWindow: 4194304\n" +     // 4MB
-                "  initConnReceiveWindow: 4194304\n" +      // 4MB
-                "  maxConnReceiveWindow: 8388608\n" +       // 8MB（2人够用）
-                "  maxIdleTimeout: 90s\n" +
-                "  maxIncomingStreams: 256\n" +             // 2人足够
-                "  disablePathMTUDiscovery: false\n" +      // 开启探测提速
-                "\n" +
-                "masquerade:\n" +
-                "  type: proxy\n" +
-                "  proxy:\n" +
-                "    url: https://www.bing.com\n" +
-                "    rewriteHost: true\n";
+            // 10. 检查 npm 包信息
+            System.out.println("\n📌 [10] OpenClaw 包信息:");
+            System.out.println("-".repeat(40));
+            File packageJson = new File(baseDir + "/node_modules/openclaw/package.json");
+            if (packageJson.exists()) {
+                String content = new String(Files.readAllBytes(packageJson.toPath()));
+                // 只提取关键信息
+                System.out.println(content);
+            } else {
+                // 尝试其他路径
+                packageJson = new File(baseDir + "/node_modules/@anthropic-ai/claw/package.json");
+                if (packageJson.exists()) {
+                    String content = new String(Files.readAllBytes(packageJson.toPath()));
+                    System.out.println(content);
+                } else {
+                    System.out.println("   找不到 package.json");
+                }
+            }
             
-            writeFile(baseDir + "/config.yaml", config);
+            // 11. 列出 node_modules/.bin 目录
+            System.out.println("\n📌 [11] node_modules/.bin 可用命令:");
+            System.out.println("-".repeat(40));
+            File binDir = new File(baseDir + "/node_modules/.bin");
+            if (binDir.exists()) {
+                String[] bins = binDir.list();
+                if (bins != null) {
+                    Arrays.sort(bins);
+                    for (String bin : bins) {
+                        System.out.println("   - " + bin);
+                    }
+                }
+            }
             
-            System.out.println("");
-            System.out.println("╔══════════════════════════════════════════════════════╗");
-            System.out.println("║     ⚡ Hysteria2 极速版就绪！                        ║");
-            System.out.println("╠══════════════════════════════════════════════════════╣");
-            System.out.println("║  📍 地址: node.zenix.sg:" + PORT + "                       ║");
-            System.out.println("║  🔑 密码: " + PASSWORD + "                               ║");
-            System.out.println("║  🚄 带宽: 无限制（由客户端决定）                     ║");
-            System.out.println("║  👥 用户: 2人专用                                    ║");
-            System.out.println("╚══════════════════════════════════════════════════════╝");
-            System.out.println("");
-            System.out.println("⚠️  重要：客户端必须设置带宽！建议 200-500 Mbps");
-            System.out.println("");
-            System.out.println("=== 📱 v2rayN 导入 ===");
-            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1#Zenix-Fast");
-            System.out.println("");
-            System.out.println("=== 📱 Clash Meta 极速配置 ===");
-            System.out.println("proxies:");
-            System.out.println("  - name: Zenix-Fast");
-            System.out.println("    type: hysteria2");
-            System.out.println("    server: node.zenix.sg");
-            System.out.println("    port: " + PORT);
-            System.out.println("    password: " + PASSWORD);
-            System.out.println("    skip-cert-verify: true");
-            System.out.println("    up: \"200 Mbps\"     # 根据你的宽带调整");
-            System.out.println("    down: \"500 Mbps\"   # 根据你的宽带调整");
-            System.out.println("");
-            System.out.println("=== 📱 NekoBox 极速链接 ===");
-            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1&up=200&down=500#Zenix-Fast");
-            System.out.println("");
-            System.out.println("🔄 启动服务...");
-            System.out.println("");
+            // 12. 运行 openclaw config list
+            System.out.println("\n📌 [12] OpenClaw 当前配置 (config list):");
+            System.out.println("-".repeat(40));
+            runAndCapture(env, baseDir, nodeBin, ocBin, "config", "list");
             
-            ProcessBuilder pb = new ProcessBuilder(baseDir + "/hysteria", "server", "-c", baseDir + "/config.yaml");
-            pb.directory(new File(baseDir));
-            pb.inheritIO();
-            Process process = pb.start();
+            // 13. 运行 openclaw doctor
+            System.out.println("\n📌 [13] OpenClaw Doctor 诊断:");
+            System.out.println("-".repeat(40));
+            runAndCapture(env, baseDir, nodeBin, ocBin, "doctor");
             
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                System.out.println("\n⏹️ 关闭中...");
-                process.destroy();
-            }));
+            // 14. 检查 pairing list
+            System.out.println("\n📌 [14] OpenClaw Pairing 列表:");
+            System.out.println("-".repeat(40));
+            runAndCapture(env, baseDir, nodeBin, ocBin, "pairing", "list");
             
-            process.waitFor();
+            // 15. 环境变量
+            System.out.println("\n📌 [15] 相关环境变量:");
+            System.out.println("-".repeat(40));
+            String[] envVars = {"HOME", "PATH", "GEMINI_API_KEY", "NODE_ENV"};
+            for (String var : envVars) {
+                String val = System.getenv(var);
+                if (var.contains("KEY") || var.contains("TOKEN")) {
+                    val = val != null ? val.substring(0, Math.min(10, val.length())) + "..." : "null";
+                }
+                System.out.println("   " + var + " = " + val);
+            }
+            
+            System.out.println("\n" + "═".repeat(60));
+            System.out.println("✅ 诊断完成！请将以上所有输出发给我");
+            System.out.println("═".repeat(60));
+            
+            // 保持程序运行一会儿以便查看输出
+            Thread.sleep(300000); // 5分钟
             
         } catch (Exception e) {
-            System.out.println("❌ 失败: " + e.getMessage());
+            System.err.println("❌ 诊断出错: " + e.getMessage());
             e.printStackTrace();
+            try {
+                Thread.sleep(300000);
+            } catch (InterruptedException ie) {}
         }
     }
     
-    static void generateCertWithKeytool(String baseDir, String cn) throws Exception {
-        new File(baseDir + "/keystore.p12").delete();
-        runCmd(baseDir, "keytool", "-genkeypair", "-alias", "hysteria", "-keyalg", "RSA", 
-            "-keysize", "2048", "-validity", "3650", "-keystore", baseDir + "/keystore.p12",
-            "-storetype", "PKCS12", "-storepass", "changeit", "-keypass", "changeit", "-dname", "CN=" + cn);
-        runCmd(baseDir, "keytool", "-exportcert", "-alias", "hysteria", "-keystore", baseDir + "/keystore.p12",
-            "-storetype", "PKCS12", "-storepass", "changeit", "-rfc", "-file", baseDir + "/server.crt");
-        runCmd(baseDir, "openssl", "pkcs12", "-in", baseDir + "/keystore.p12", "-nocerts", "-nodes",
-            "-out", baseDir + "/server.key", "-passin", "pass:changeit");
-    }
-    
-    static void downloadFile(String urlStr, String dest) throws Exception {
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-        conn.setInstanceFollowRedirects(true);
-        int status = conn.getResponseCode();
-        if (status == 302 || status == 301) {
-            conn = (HttpURLConnection) new URL(conn.getHeaderField("Location")).openConnection();
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+    static void runAndCapture(Map<String, String> env, String workDir, String... cmd) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.environment().putAll(env);
+            pb.directory(new File(workDir));
+            pb.redirectErrorStream(true);
+            
+            Process p = pb.start();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println("   " + line);
+            }
+            p.waitFor();
+        } catch (Exception e) {
+            System.out.println("   ❌ 执行失败: " + e.getMessage());
         }
-        try (InputStream in = conn.getInputStream(); FileOutputStream out = new FileOutputStream(dest)) {
-            byte[] buf = new byte[8192];
-            int len;
-            while ((len = in.read(buf)) != -1) out.write(buf, 0, len);
+    }
+    
+    static void listDirectory(File dir, String indent) {
+        File[] files = dir.listFiles();
+        if (files != null) {
+            Arrays.sort(files);
+            for (File f : files) {
+                if (f.isDirectory()) {
+                    System.out.println(indent + "📁 " + f.getName() + "/");
+                    listDirectory(f, indent + "   ");
+                } else {
+                    long size = f.length();
+                    System.out.println(indent + "📄 " + f.getName() + " (" + size + " bytes)");
+                }
+            }
         }
-        System.out.println("   下载完成 ✓");
-    }
-    
-    static void writeFile(String path, String content) throws Exception {
-        try (FileWriter w = new FileWriter(path)) { w.write(content); }
-    }
-    
-    static void runCmd(String dir, String... cmd) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.directory(new File(dir));
-        pb.inheritIO();
-        pb.start().waitFor();
     }
 }
