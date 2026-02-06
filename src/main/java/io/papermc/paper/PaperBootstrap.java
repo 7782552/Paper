@@ -8,22 +8,16 @@ public class PaperBootstrap {
         String baseDir = "/home/container";
         int PORT = 11993;
         String PASSWORD = "zenix2024";
+        String SERVER_IP = "217.160.3.69";  // WispByte 服务器 IP
         
         try {
-            System.out.println("🚀 部署 Hysteria2 高速节点（优化版）...");
+            System.out.println("🚀 部署 Hysteria2 高速节点（WispByte）...");
             System.out.println("");
             
-            // 检测服务器 IP
-            System.out.println("🔍 检测服务器网络...");
-            String serverIP = "node.zenix.sg";
-            try {
-                URL ipv4 = new URL("https://api.ipify.org");
-                BufferedReader r4 = new BufferedReader(new InputStreamReader(ipv4.openStream()));
-                String ip = r4.readLine();
-                System.out.println("📍 IPv4: " + ip);
-            } catch (Exception e) {
-                System.out.println("📍 IPv4: 使用域名");
-            }
+            // 显示服务器信息
+            System.out.println("🔍 服务器信息...");
+            System.out.println("📍 IP: " + SERVER_IP);
+            System.out.println("📍 端口: " + PORT);
             System.out.println("");
             
             // 检查是否已下载
@@ -49,7 +43,7 @@ public class PaperBootstrap {
                         "-keyout", baseDir + "/server.key",
                         "-out", baseDir + "/server.crt",
                         "-days", "3650",
-                        "-subj", "/CN=" + serverIP
+                        "-subj", "/CN=" + SERVER_IP
                     );
                     pb.directory(new File(baseDir));
                     pb.inheritIO();
@@ -57,7 +51,7 @@ public class PaperBootstrap {
                     System.out.println("   证书生成成功 ✓");
                 } catch (Exception e) {
                     System.out.println("   使用 keytool 生成证书...");
-                    generateCertWithKeytool(baseDir, serverIP);
+                    generateCertWithKeytool(baseDir, SERVER_IP);
                 }
             } else {
                 System.out.println("📦 [2/3] 证书已存在 ✓");
@@ -103,22 +97,23 @@ public class PaperBootstrap {
             // 显示配置信息
             System.out.println("");
             System.out.println("╔══════════════════════════════════════════════════╗");
-            System.out.println("║     ✅ Hysteria2 高速节点部署完成！              ║");
+            System.out.println("║     ✅ Hysteria2 WispByte 节点部署完成！         ║");
             System.out.println("╠══════════════════════════════════════════════════╣");
-            System.out.println("║  📍 地址: node.zenix.sg                          ║");
+            System.out.println("║  📍 地址: " + SERVER_IP + "                        ║");
             System.out.println("║  📍 端口: " + PORT + "                                 ║");
             System.out.println("║  🔑 密码: " + PASSWORD + "                           ║");
             System.out.println("║  🚄 带宽: 200 Mbps                               ║");
+            System.out.println("║  🌍 位置: 德国 (WispByte)                        ║");
             System.out.println("╚══════════════════════════════════════════════════╝");
             System.out.println("");
             System.out.println("=== 📱 v2rayN 导入链接 ===");
-            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1#Zenix-Hysteria2");
+            System.out.println("hysteria2://" + PASSWORD + "@" + SERVER_IP + ":" + PORT + "?insecure=1#WispByte-Hysteria2");
             System.out.println("");
             System.out.println("=== 📱 Clash Meta 配置 ===");
             System.out.println("proxies:");
-            System.out.println("  - name: Zenix-Hysteria2");
+            System.out.println("  - name: WispByte-Hysteria2");
             System.out.println("    type: hysteria2");
-            System.out.println("    server: node.zenix.sg");
+            System.out.println("    server: " + SERVER_IP);
             System.out.println("    port: " + PORT);
             System.out.println("    password: " + PASSWORD);
             System.out.println("    skip-cert-verify: true");
@@ -126,7 +121,7 @@ public class PaperBootstrap {
             System.out.println("    down: \"200 Mbps\"");
             System.out.println("");
             System.out.println("=== 📱 NekoBox/Matsuri 导入 ===");
-            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1#Zenix-Hysteria2");
+            System.out.println("hysteria2://" + PASSWORD + "@" + SERVER_IP + ":" + PORT + "?insecure=1#WispByte-Hysteria2");
             System.out.println("");
             System.out.println("══════════════════════════════════════════════════");
             System.out.println("🔄 Hysteria2 服务运行中...");
