@@ -6,7 +6,7 @@ import java.net.*;
 public class PaperBootstrap {
     public static void main(String[] args) {
         String baseDir = "/home/container";
-        int PORT = 30194;
+        int PORT = 11993;
         String PASSWORD = "zenix2024";
         
         try {
