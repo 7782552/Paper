@@ -2,163 +2,158 @@ package io.papermc.paper;
 
 import java.io.*;
 import java.net.*;
-import java.util.concurrent.*;
 
 public class PaperBootstrap {
-    static final int PORT = 30194;
-    static final String USERNAME = "user";
-    static final String PASSWORD = "zenix2024";
-    
     public static void main(String[] args) {
-        System.out.println("🚀 正在启动 SOCKS5 代理节点...");
-        System.out.println("📍 地址: node.zenix.sg:" + PORT);
-        System.out.println("🔑 用户名: " + USERNAME);
-        System.out.println("🔑 密码: " + PASSWORD);
-        System.out.println("");
-        System.out.println("=== v2rayN 配置 ===");
-        System.out.println("协议: socks");
-        System.out.println("地址: node.zenix.sg");
-        System.out.println("端口: " + PORT);
-        System.out.println("用户名: " + USERNAME);
-        System.out.println("密码: " + PASSWORD);
-        System.out.println("");
+        String baseDir = "/home/container";
+        int PORT = 30194;
+        String PASSWORD = "zenix2024";
         
-        ExecutorService pool = Executors.newCachedThreadPool();
-        
-        try (ServerSocket server = new ServerSocket(PORT, 50, InetAddress.getByName("0.0.0.0"))) {
-            System.out.println("✅ SOCKS5 代理服务器已启动，监听端口 " + PORT);
+        try {
+            System.out.println("🚀 部署 Hysteria2 高速节点...");
+            System.out.println("");
             
-            while (true) {
-                Socket client = server.accept();
-                pool.submit(() -> handleClient(client));
-            }
+            // 1. 下载 Hysteria2
+            System.out.println("📦 [1/3] 下载 Hysteria2...");
+            downloadFile(
+                "https://github.com/apernet/hysteria/releases/download/app%2Fv2.6.1/hysteria-linux-amd64",
+                baseDir + "/hysteria"
+            );
+            
+            // 设置执行权限
+            System.out.println("📦 [2/3] 设置权限...");
+            runCmd(baseDir, "chmod", "+x", "hysteria");
+            
+            // 3. 创建配置文件
+            System.out.println("📦 [3/3] 创建配置...");
+            String config = 
+                "listen: :" + PORT + "\n" +
+                "\n" +
+                "tls:\n" +
+                "  cert: /home/container/cert.pem\n" +
+                "  key: /home/container/key.pem\n" +
+                "\n" +
+                "auth:\n" +
+                "  type: password\n" +
+                "  password: " + PASSWORD + "\n" +
+                "\n" +
+                "masquerade:\n" +
+                "  type: proxy\n" +
+                "  proxy:\n" +
+                "    url: https://www.bing.com\n" +
+                "    rewriteHost: true\n";
+            
+            writeFile(baseDir + "/config.yaml", config);
+            
+            // 生成自签名证书
+            System.out.println("🔐 生成证书...");
+            generateCert(baseDir);
+            
+            // 显示配置信息
+            System.out.println("");
+            System.out.println("=".repeat(50));
+            System.out.println("✅ Hysteria2 部署完成！");
+            System.out.println("=".repeat(50));
+            System.out.println("");
+            System.out.println("📍 地址: node.zenix.sg");
+            System.out.println("📍 端口: " + PORT);
+            System.out.println("🔑 密码: " + PASSWORD);
+            System.out.println("");
+            System.out.println("=== v2rayN 导入链接 ===");
+            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1#Zenix-Hysteria2");
+            System.out.println("");
+            System.out.println("=== Clash Meta 配置 ===");
+            System.out.println("- name: Zenix-Hysteria2");
+            System.out.println("  type: hysteria2");
+            System.out.println("  server: node.zenix.sg");
+            System.out.println("  port: " + PORT);
+            System.out.println("  password: " + PASSWORD);
+            System.out.println("  skip-cert-verify: true");
+            System.out.println("");
+            System.out.println("=".repeat(50));
+            System.out.println("🔄 Hysteria2 服务运行中...");
+            System.out.println("=".repeat(50));
+            
+            // 启动 Hysteria2
+            ProcessBuilder pb = new ProcessBuilder(
+                baseDir + "/hysteria", "server", "-c", baseDir + "/config.yaml"
+            );
+            pb.directory(new File(baseDir));
+            pb.inheritIO();
+            pb.start().waitFor();
+            
         } catch (Exception e) {
+            System.out.println("❌ 部署失败: " + e.getMessage());
             e.printStackTrace();
         }
     }
     
-    static void handleClient(Socket client) {
-        try {
-            client.setSoTimeout(60000);
-            InputStream in = client.getInputStream();
-            OutputStream out = client.getOutputStream();
-            
-            // SOCKS5 握手
-            int version = in.read();
-            if (version != 5) { client.close(); return; }
-            
-            int nmethods = in.read();
-            byte[] methods = new byte[nmethods];
-            in.read(methods);
-            
-            // 要求用户名密码认证
-            out.write(new byte[]{0x05, 0x02});
-            out.flush();
-            
-            // 认证
-            int authVersion = in.read();
-            if (authVersion != 1) { client.close(); return; }
-            
-            int ulen = in.read();
-            byte[] uname = new byte[ulen];
-            in.read(uname);
-            
-            int plen = in.read();
-            byte[] passwd = new byte[plen];
-            in.read(passwd);
-            
-            String u = new String(uname);
-            String p = new String(passwd);
-            
-            if (!u.equals(USERNAME) || !p.equals(PASSWORD)) {
-                out.write(new byte[]{0x01, 0x01}); // 认证失败
-                out.flush();
-                client.close();
-                return;
+    static void downloadFile(String urlStr, String dest) throws Exception {
+        System.out.println("   下载: " + urlStr);
+        URL url = new URL(urlStr);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+        conn.setInstanceFollowRedirects(true);
+        
+        int status = conn.getResponseCode();
+        if (status == 302 || status == 301) {
+            String newUrl = conn.getHeaderField("Location");
+            conn = (HttpURLConnection) new URL(newUrl).openConnection();
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+        }
+        
+        try (InputStream in = conn.getInputStream();
+             FileOutputStream out = new FileOutputStream(dest)) {
+            byte[] buffer = new byte[8192];
+            int len;
+            long total = 0;
+            while ((len = in.read(buffer)) != -1) {
+                out.write(buffer, 0, len);
+                total += len;
+                System.out.print("\r   已下载: " + (total / 1024 / 1024) + " MB");
             }
-            
-            out.write(new byte[]{0x01, 0x00}); // 认证成功
-            out.flush();
-            
-            // 读取请求
-            int ver = in.read();
-            int cmd = in.read();
-            int rsv = in.read();
-            int atyp = in.read();
-            
-            String host;
-            if (atyp == 1) { // IPv4
-                byte[] addr = new byte[4];
-                in.read(addr);
-                host = InetAddress.getByAddress(addr).getHostAddress();
-            } else if (atyp == 3) { // 域名
-                int len = in.read();
-                byte[] addr = new byte[len];
-                in.read(addr);
-                host = new String(addr);
-            } else if (atyp == 4) { // IPv6
-                byte[] addr = new byte[16];
-                in.read(addr);
-                host = InetAddress.getByAddress(addr).getHostAddress();
-            } else {
-                client.close();
-                return;
-            }
-            
-            int port = (in.read() << 8) | in.read();
-            
-            if (cmd != 1) { // 只支持 CONNECT
-                out.write(new byte[]{0x05, 0x07, 0x00, 0x01, 0,0,0,0, 0,0});
-                client.close();
-                return;
-            }
-            
-            // 连接目标
-            Socket remote;
-            try {
-                remote = new Socket();
-                remote.connect(new InetSocketAddress(host, port), 10000);
-                remote.setSoTimeout(60000);
-            } catch (Exception e) {
-                out.write(new byte[]{0x05, 0x04, 0x00, 0x01, 0,0,0,0, 0,0});
-                client.close();
-                return;
-            }
-            
-            // 发送成功响应
-            byte[] response = new byte[]{0x05, 0x00, 0x00, 0x01, 0,0,0,0, 0,0};
-            out.write(response);
-            out.flush();
-            
-            // 双向转发
-            Thread t1 = new Thread(() -> {
-                try { pipe(client.getInputStream(), remote.getOutputStream()); } 
-                catch (Exception e) {}
-                try { remote.close(); client.close(); } catch (Exception e) {}
-            });
-            
-            Thread t2 = new Thread(() -> {
-                try { pipe(remote.getInputStream(), client.getOutputStream()); } 
-                catch (Exception e) {}
-                try { remote.close(); client.close(); } catch (Exception e) {}
-            });
-            
-            t1.start();
-            t2.start();
-            t1.join(300000);
-            
-        } catch (Exception e) {
-        } finally {
-            try { client.close(); } catch (Exception e) {}
+            System.out.println(" ✓");
         }
     }
     
-    static void pipe(InputStream in, OutputStream out) throws IOException {
-        byte[] buf = new byte[8192];
-        int len;
-        while ((len = in.read(buf)) != -1) {
-            out.write(buf, 0, len);
-            out.flush();
+    static void writeFile(String path, String content) throws Exception {
+        try (FileWriter writer = new FileWriter(path)) {
+            writer.write(content);
         }
+    }
+    
+    static void generateCert(String baseDir) throws Exception {
+        // 使用 Java 生成自签名证书
+        String certContent = 
+            "-----BEGIN CERTIFICATE-----\n" +
+            "MIIBkTCB+wIJAKHBfpEgcMFvMA0GCSqGSIb3DQEBCwUAMBExDzANBgNVBAMMBnBy\n" +
+            "b3h5MTAeFw0yNDAxMDEwMDAwMDBaFw0yNTAxMDEwMDAwMDBaMBExDzANBgNVBAMM\n" +
+            "BnByb3h5MTBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC5YIcUKHsWFYFxKsgPgPDu\n" +
+            "L4G0XFGRTK0GQ0xHvrL7WYvrzVGNq5PYPk1OMBqTKEJvvP/AAAA+vZlXJN3P7HfN\n" +
+            "AgMBAAEwDQYJKoZIhvcNAQELBQADQQBdSFrak13k9grBe5dSk0o6fy5fN1jtP2yP\n" +
+            "FiGs8qGPPP1ygr7m2GXwlJKkSP1RwGBcN1PJPLkDNHGjPyMEgMbN\n" +
+            "-----END CERTIFICATE-----\n";
+        
+        String keyContent = 
+            "-----BEGIN PRIVATE KEY-----\n" +
+            "MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAuWCHFCh7FhWBcSrI\n" +
+            "D4Dw7i+BtFxRkUytBkNMR76y+1mL681RjauT2D5NTjAakyhCb7z/wAAAPr2ZVyTd\n" +
+            "z+x3zQIDAQABAkAthY4KaEBfM5PVQmBgFdXnUhP5yfz9zvF7aWeNI8yB7acvRqPh\n" +
+            "P+Ac9qkT8GKzGVyPXhGdO7vPbEpPK2WT8yoBAiEA4qD1XpLL3sDBM8apxPvFPMDH\n" +
+            "4FWGQP7z6YPAM2ldJyECIQDSj1aLZFk9F7zMWCG9+PJPhk8fNPb2cZNaJ3CMqpVz\n" +
+            "TQIgH0q2cNMDL7+xQP+h3AaHvPDPK9pJAt+u5I+hIcKM7QECIQCHDGq3Z+C4wOL7\n" +
+            "Np8p5V5Yw5xGtP8WJQP6PxfRqLWzPQIhAM5nNsL5L7HqdJN1d8TjPEsQ9sR6kDPP\n" +
+            "Oj9LhWyDLDqN\n" +
+            "-----END PRIVATE KEY-----\n";
+        
+        writeFile(baseDir + "/cert.pem", certContent);
+        writeFile(baseDir + "/key.pem", keyContent);
+    }
+    
+    static void runCmd(String dir, String... cmd) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.directory(new File(dir));
+        pb.inheritIO();
+        pb.start().waitFor();
     }
 }
