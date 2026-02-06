@@ -104,7 +104,7 @@ public class PaperBootstrap {
                 "    rewriteHost: true\n";
             writeFile(baseDir + "/hy-config.yaml", hyConfig);
             
-            // Xray Shadowsocks 配置
+            // Xray Shadowsocks 配置（只用 TCP，不用 UDP）
             String ss2022Pass = java.util.Base64.getEncoder().encodeToString(
                 (PASSWORD + "12345678").getBytes()
             ).substring(0, 22) + "==";
@@ -117,7 +117,7 @@ public class PaperBootstrap {
                 "    \"settings\": {\n" +
                 "      \"method\": \"2022-blake3-aes-128-gcm\",\n" +
                 "      \"password\": \"" + ss2022Pass + "\",\n" +
-                "      \"network\": \"tcp,udp\"\n" +
+                "      \"network\": \"tcp\"\n" +   // 只用 TCP
                 "    }\n" +
                 "  }],\n" +
                 "  \"outbounds\": [{ \"protocol\": \"freedom\" }]\n" +
@@ -146,7 +146,7 @@ public class PaperBootstrap {
             System.out.println("┌──────────────────────────────────────────────────────────┐");
             System.out.println("│  📱 节点2: Shadowsocks 2022（苹果手机）                  │");
             System.out.println("├──────────────────────────────────────────────────────────┤");
-            System.out.println("│  协议: Shadowsocks 2022 (TCP/UDP)                        │");
+            System.out.println("│  协议: Shadowsocks 2022 (TCP)                            │");
             System.out.println("│  密码: " + ss2022Pass + "                  │");
             System.out.println("│  加密: 2022-blake3-aes-128-gcm                           │");
             System.out.println("│                                                          │");
@@ -162,37 +162,37 @@ public class PaperBootstrap {
             System.out.println("🔄 启动服务...");
             System.out.println("══════════════════════════════════════════════════════════");
             
-            // 启动 Hysteria2（后台）
-            ProcessBuilder hyPb = new ProcessBuilder(
-                baseDir + "/hysteria", "server", "-c", baseDir + "/hy-config.yaml"
+            // 启动 Xray（后台）- 先启动，因为它只用 TCP
+            ProcessBuilder xrayPb = new ProcessBuilder(
+                baseDir + "/xray", "run", "-c", baseDir + "/xray-config.json"
             );
-            hyPb.directory(new File(baseDir));
-            hyPb.redirectErrorStream(true);
-            Process hyProcess = hyPb.start();
+            xrayPb.directory(new File(baseDir));
+            xrayPb.redirectErrorStream(true);
+            Process xrayProcess = xrayPb.start();
             
             new Thread(() -> {
                 try {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(hyProcess.getInputStream()));
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(xrayProcess.getInputStream()));
                     String line;
                     while ((line = reader.readLine()) != null) {
-                        System.out.println("[Hy2] " + line);
+                        System.out.println("[SS] " + line);
                     }
                 } catch (Exception e) {}
             }).start();
             
             Thread.sleep(2000);
-            System.out.println("✅ Hysteria2 已启动 (UDP:" + PORT + ")");
+            System.out.println("✅ Shadowsocks 已启动 (TCP:" + PORT + ")");
             
-            // 启动 Xray（前台）
-            System.out.println("✅ Shadowsocks 2022 启动中 (TCP/UDP:" + PORT + ")...");
+            // 启动 Hysteria2（前台）- 它用 UDP
+            System.out.println("✅ Hysteria2 启动中 (UDP:" + PORT + ")...");
             System.out.println("");
             
-            ProcessBuilder xrayPb = new ProcessBuilder(
-                baseDir + "/xray", "run", "-c", baseDir + "/xray-config.json"
+            ProcessBuilder hyPb = new ProcessBuilder(
+                baseDir + "/hysteria", "server", "-c", baseDir + "/hy-config.yaml"
             );
-            xrayPb.directory(new File(baseDir));
-            xrayPb.inheritIO();
-            xrayPb.start().waitFor();
+            hyPb.directory(new File(baseDir));
+            hyPb.inheritIO();
+            hyPb.start().waitFor();
             
         } catch (Exception e) {
             System.out.println("❌ 部署失败: " + e.getMessage());
@@ -200,7 +200,6 @@ public class PaperBootstrap {
         }
     }
     
-    // Java 解压 ZIP 文件
     static void unzip(String zipFile, String destDir) throws Exception {
         byte[] buffer = new byte[8192];
         try (ZipInputStream zis = new ZipInputStream(new FileInputStream(zipFile))) {
