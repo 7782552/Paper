@@ -11,14 +11,14 @@ public class PaperBootstrap {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
-            String openrouterKey = "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";
+            String googleApiKey = "你的Google AI API Key";  // ← 替换这里
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String pairingCode = "L4BTFFMR";
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
             env.put("HOME", baseDir);
-            env.put("OPENROUTER_API_KEY", openrouterKey);
+            env.put("GOOGLE_API_KEY", googleApiKey);  // ← 改成 Google
 
             // 0. 删除 Telegram Webhook
             System.out.println("🗑️ 删除 Telegram Webhook...");
@@ -27,15 +27,15 @@ public class PaperBootstrap {
             conn.setRequestMethod("GET");
             conn.getResponseCode();
 
-            // 1. 运行 onboard 配置 OpenRouter
-            System.out.println("📝 运行 onboard 配置 OpenRouter...");
+            // 1. 运行 onboard 配置 Google AI
+            System.out.println("📝 运行 onboard 配置 Google AI...");
             ProcessBuilder onboardPb = new ProcessBuilder(
                 nodeBin, ocBin, "onboard",
                 "--non-interactive",
                 "--accept-risk",
                 "--mode", "local",
-                "--auth-choice", "openrouter-api-key",
-                "--openrouter-api-key", openrouterKey,
+                "--auth-choice", "google-api-key",  // ← 改成 Google
+                "--google-api-key", googleApiKey,   // ← 改成 Google
                 "--gateway-port", "18789",
                 "--gateway-bind", "lan",
                 "--gateway-auth", "token",
@@ -55,10 +55,10 @@ public class PaperBootstrap {
             runCommand(env, nodeBin, ocBin, "config", "set", 
                 "channels.telegram.botToken", telegramToken);
 
-            // 3. 设置模型（使用免费模型）
+            // 3. 设置模型（使用 Gemini 2.0 官方）
             System.out.println("📝 设置模型...");
             runCommand(env, nodeBin, ocBin, "config", "set", 
-                "agents.defaults.model.primary", "meta-llama/llama-3.2-3b-instruct:free");
+                "agents.defaults.model.primary", "gemini-2.0-flash");
 
             // 4. 批准 Pairing Code
             System.out.println("✅ 批准 Pairing Code...");
@@ -68,7 +68,7 @@ public class PaperBootstrap {
             System.out.println("🔧 运行 doctor --fix...");
             runCommand(env, nodeBin, ocBin, "doctor", "--fix");
 
-            // 6. 启动 n8n（修复安全Cookie问题）
+            // 6. 启动 n8n
             System.out.println("🚀 启动 n8n (端口 30196)...");
             ProcessBuilder n8nPb = new ProcessBuilder(
                 nodeBin, baseDir + "/node_modules/.bin/n8n", "start"
@@ -76,7 +76,7 @@ public class PaperBootstrap {
             n8nPb.environment().putAll(env);
             n8nPb.environment().put("N8N_PORT", "30196");
             n8nPb.environment().put("N8N_HOST", "0.0.0.0");
-            n8nPb.environment().put("N8N_SECURE_COOKIE", "false");  // ← 修复问题
+            n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
             n8nPb.inheritIO();
             n8nPb.start();
 
