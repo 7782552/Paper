@@ -2,72 +2,108 @@ package io.papermc.paper;
 
 import java.io.*;
 import java.net.*;
-import java.nio.file.*;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
 
 public class PaperBootstrap {
-    // ================= 配置参数 =================
-    private static final String PORT = "30194"; 
-    private static final String UUID = "16202dac-ec89-49bd-92aa-0b537d9ac66c";
-    private static final String DEST = "www.microsoft.com:443"; // 落地伪装域名
-    private static final String SNI = "www.microsoft.com";
-    // Reality 密钥对 (可以使用你日志里固定的，这里示例一对)
-    private static final String PRIVATE_KEY = "uOf7O0z3...你的私钥..."; 
-    private static final String PUBLIC_KEY = "Hnx5iiA5nEykaXEwBZZLuH7fQC7ydz2fRztLwGrM3F0";
-    // ============================================
-
     public static void main(String[] args) {
-        System.out.println("🛠️ 正在初始化 VLESS Reality 高速节点...");
-
+        System.out.println("🦞 [OpenClaw] 正在配置 Telegram...");
         try {
-            // 1. 下载 sing-box 二进制文件 (如果不存在)
-            File exe = new File("sing-box");
-            if (!exe.exists()) {
-                System.out.println("⬇️ 正在下载 sing-box 内核...");
-                // 这里建议预先手动上传 sing-box 文件到根目录，或者使用 Java 下载代码
-            }
+            String baseDir = "/home/container";
+            String nodeBin = baseDir + "/node-v22/bin/node";
+            String ocBin = baseDir + "/node_modules/.bin/openclaw";
+            String openrouterKey = "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";
+            String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
+            String pairingCode = "L4BTFFMR";
 
-            // 2. 动态生成 config.json
-            generateConfig();
+            Map<String, String> env = new HashMap<>();
+            env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
+            env.put("HOME", baseDir);
+            env.put("OPENROUTER_API_KEY", openrouterKey);
 
-            // 3. 启动节点进程
-            System.out.println("🚀 正在启动 sing-box 核心进程...");
-            ProcessBuilder pb = new ProcessBuilder("./sing-box", "run", "-c", "config.json");
-            pb.inheritIO();
-            Process process = pb.start();
+            // 0. 删除 Telegram Webhook
+            System.out.println("🗑️ 删除 Telegram Webhook...");
+            URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.getResponseCode();
 
-            // 4. 防止 Java 退出导致容器关闭
-            System.out.println("\n✅ 节点已启动！端口: " + PORT);
-            System.out.println("🔗 链接: vless://" + UUID + "@113.22.166.76:" + PORT + "?encryption=none&flow=xtls-rprx-vision&security=reality&sni=" + SNI + "&fp=chrome&pbk=" + PUBLIC_KEY + "#Zenix-HighSpeed");
-            
-            process.waitFor(); // 只要 sing-box 不挂，Java 就一直运行
+            // 1. 运行 onboard 配置 OpenRouter
+            System.out.println("📝 运行 onboard 配置 OpenRouter...");
+            ProcessBuilder onboardPb = new ProcessBuilder(
+                nodeBin, ocBin, "onboard",
+                "--non-interactive",
+                "--accept-risk",
+                "--mode", "local",
+                "--auth-choice", "openrouter-api-key",
+                "--openrouter-api-key", openrouterKey,
+                "--gateway-port", "18789",
+                "--gateway-bind", "lan",
+                "--gateway-auth", "token",
+                "--gateway-token", "admin123",
+                "--skip-daemon",
+                "--skip-channels",
+                "--skip-skills",
+                "--skip-health",
+                "--skip-ui"
+            );
+            onboardPb.environment().putAll(env);
+            onboardPb.inheritIO();
+            onboardPb.start().waitFor();
+
+            // 2. 配置 Telegram Bot Token
+            System.out.println("📝 配置 Telegram Bot...");
+            runCommand(env, nodeBin, ocBin, "config", "set", 
+                "channels.telegram.botToken", telegramToken);
+
+            // 3. 设置模型（使用免费模型）
+            System.out.println("📝 设置模型...");
+            runCommand(env, nodeBin, ocBin, "config", "set", 
+                "agents.defaults.model.primary", "meta-llama/llama-3.2-3b-instruct:free");
+
+            // 4. 批准 Pairing Code
+            System.out.println("✅ 批准 Pairing Code...");
+            runCommand(env, nodeBin, ocBin, "pairing", "approve", "telegram", pairingCode);
+
+            // 5. 运行 doctor --fix
+            System.out.println("🔧 运行 doctor --fix...");
+            runCommand(env, nodeBin, ocBin, "doctor", "--fix");
+
+            // 6. 启动 n8n（修复安全Cookie问题）
+            System.out.println("🚀 启动 n8n (端口 30196)...");
+            ProcessBuilder n8nPb = new ProcessBuilder(
+                nodeBin, baseDir + "/node_modules/.bin/n8n", "start"
+            );
+            n8nPb.environment().putAll(env);
+            n8nPb.environment().put("N8N_PORT", "30196");
+            n8nPb.environment().put("N8N_HOST", "0.0.0.0");
+            n8nPb.environment().put("N8N_SECURE_COOKIE", "false");  // ← 修复问题
+            n8nPb.inheritIO();
+            n8nPb.start();
+
+            Thread.sleep(3000);
+
+            // 7. 启动 Gateway
+            System.out.println("🚀 启动 OpenClaw Gateway + Telegram...");
+            ProcessBuilder gatewayPb = new ProcessBuilder(
+                nodeBin, ocBin, "gateway",
+                "--port", "18789",
+                "--bind", "lan",
+                "--token", "admin123",
+                "--verbose"
+            );
+            gatewayPb.environment().putAll(env);
+            gatewayPb.inheritIO();
+            gatewayPb.start().waitFor();
+
         } catch (Exception e) {
-            System.err.println("❌ 启动失败: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
-    private static void generateConfig() throws IOException {
-        String config = "{\n" +
-                "  \"inbounds\": [{\n" +
-                "    \"type\": \"vless\",\n" +
-                "    \"tag\": \"vless-in\",\n" +
-                "    \"listen\": \"::\",\n" +
-                "    \"listen_port\": " + PORT + ",\n" +
-                "    \"users\": [{\"uuid\": \"" + UUID + "\", \"flow\": \"xtls-rprx-vision\"}],\n" +
-                "    \"tls\": {\n" +
-                "      \"enabled\": true,\n" +
-                "      \"server_name\": \"" + SNI + "\",\n" +
-                "      \"reality\": {\n" +
-                "        \"enabled\": true,\n" +
-                "        \"handshake\": {\"server\": \"" + SNI + "\", \"server_port\": 443},\n" +
-                "        \"private_key\": \"" + PRIVATE_KEY + "\",\n" +
-                "        \"short_id\": [\"16\", \"a1b2c3d4\"]\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }],\n" +
-                "  \"outbounds\": [{\"type\": \"direct\", \"tag\": \"direct\"}]\n" +
-                "}";
-        Files.write(Paths.get("config.json"), config.getBytes());
-        System.out.println("📝 config.json 已成功生成。");
+    static void runCommand(Map<String, String> env, String... cmd) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.environment().putAll(env);
+        pb.inheritIO();
+        pb.start().waitFor();
     }
 }
