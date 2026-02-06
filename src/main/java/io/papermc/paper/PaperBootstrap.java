@@ -3,119 +3,205 @@ package io.papermc.paper;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 public class PaperBootstrap {
+    static final int PORT = 30194;
+    static final String USERNAME = "user";
+    static final String PASSWORD = "zenix2024";
+    
     public static void main(String[] args) {
         System.out.println("🚀 正在启动代理节点...");
-        try {
-            String baseDir = "/home/container";
-            String nodeBin = baseDir + "/node-v22/bin/node";
+        System.out.println("📍 地址: node.zenix.sg:" + PORT);
+        System.out.println("🔑 用户名: " + USERNAME);
+        System.out.println("🔑 密码: " + PASSWORD);
+        System.out.println("");
+        System.out.println("=== Clash 配置 ===");
+        System.out.println("- name: Zenix-Node");
+        System.out.println("  type: http");
+        System.out.println("  server: node.zenix.sg");
+        System.out.println("  port: " + PORT);
+        System.out.println("  username: " + USERNAME);
+        System.out.println("  password: " + PASSWORD);
+        System.out.println("");
+        
+        ExecutorService pool = Executors.newCachedThreadPool();
+        
+        try (ServerSocket server = new ServerSocket(PORT, 50, InetAddress.getByName("0.0.0.0"))) {
+            System.out.println("✅ 代理服务器已启动，监听端口 " + PORT);
             
-            Map<String, String> env = new HashMap<>();
-            env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
-            env.put("HOME", baseDir);
-
-            // 1. 创建代理服务器脚本
-            System.out.println("📝 创建代理服务器...");
-            String proxyScript = 
-                "const http = require('http');\n" +
-                "const https = require('https');\n" +
-                "const net = require('net');\n" +
-                "const url = require('url');\n" +
-                "\n" +
-                "const PORT = 30194;\n" +
-                "const PASSWORD = 'zenix2024';\n" +
-                "\n" +
-                "const server = http.createServer((req, res) => {\n" +
-                "  // 验证密码\n" +
-                "  const auth = req.headers['proxy-authorization'];\n" +
-                "  if (!auth || !auth.includes(Buffer.from('user:' + PASSWORD).toString('base64'))) {\n" +
-                "    res.writeHead(407, { 'Proxy-Authenticate': 'Basic realm=\"Proxy\"' });\n" +
-                "    res.end('Proxy Authentication Required');\n" +
-                "    return;\n" +
-                "  }\n" +
-                "\n" +
-                "  const targetUrl = url.parse(req.url);\n" +
-                "  const options = {\n" +
-                "    hostname: targetUrl.hostname,\n" +
-                "    port: targetUrl.port || 80,\n" +
-                "    path: targetUrl.path,\n" +
-                "    method: req.method,\n" +
-                "    headers: req.headers\n" +
-                "  };\n" +
-                "  delete options.headers['proxy-authorization'];\n" +
-                "\n" +
-                "  const proxyReq = http.request(options, (proxyRes) => {\n" +
-                "    res.writeHead(proxyRes.statusCode, proxyRes.headers);\n" +
-                "    proxyRes.pipe(res);\n" +
-                "  });\n" +
-                "\n" +
-                "  proxyReq.on('error', (e) => {\n" +
-                "    res.writeHead(500);\n" +
-                "    res.end('Proxy Error: ' + e.message);\n" +
-                "  });\n" +
-                "\n" +
-                "  req.pipe(proxyReq);\n" +
-                "});\n" +
-                "\n" +
-                "// HTTPS CONNECT 隧道\n" +
-                "server.on('connect', (req, clientSocket, head) => {\n" +
-                "  const auth = req.headers['proxy-authorization'];\n" +
-                "  if (!auth || !auth.includes(Buffer.from('user:' + PASSWORD).toString('base64'))) {\n" +
-                "    clientSocket.write('HTTP/1.1 407 Proxy Authentication Required\\r\\n');\n" +
-                "    clientSocket.write('Proxy-Authenticate: Basic realm=\"Proxy\"\\r\\n\\r\\n');\n" +
-                "    clientSocket.end();\n" +
-                "    return;\n" +
-                "  }\n" +
-                "\n" +
-                "  const [hostname, port] = req.url.split(':');\n" +
-                "  const serverSocket = net.connect(port || 443, hostname, () => {\n" +
-                "    clientSocket.write('HTTP/1.1 200 Connection Established\\r\\n\\r\\n');\n" +
-                "    serverSocket.write(head);\n" +
-                "    serverSocket.pipe(clientSocket);\n" +
-                "    clientSocket.pipe(serverSocket);\n" +
-                "  });\n" +
-                "\n" +
-                "  serverSocket.on('error', (e) => {\n" +
-                "    clientSocket.end();\n" +
-                "  });\n" +
-                "\n" +
-                "  clientSocket.on('error', (e) => {\n" +
-                "    serverSocket.end();\n" +
-                "  });\n" +
-                "});\n" +
-                "\n" +
-                "server.listen(PORT, '0.0.0.0', () => {\n" +
-                "  console.log('✅ 代理节点已启动');\n" +
-                "  console.log('📍 地址: node.zenix.sg:' + PORT);\n" +
-                "  console.log('🔑 用户名: user');\n" +
-                "  console.log('🔑 密码: ' + PASSWORD);\n" +
-                "  console.log('');\n" +
-                "  console.log('=== 使用方法 ===');\n" +
-                "  console.log('HTTP代理: http://user:' + PASSWORD + '@node.zenix.sg:' + PORT);\n" +
-                "  console.log('');\n" +
-                "  console.log('=== Clash 配置 ===');\n" +
-                "  console.log('- name: Zenix-Node');\n" +
-                "  console.log('  type: http');\n" +
-                "  console.log('  server: node.zenix.sg');\n" +
-                "  console.log('  port: ' + PORT);\n" +
-                "  console.log('  username: user');\n" +
-                "  console.log('  password: ' + PASSWORD);\n" +
-                "});\n";
-
-            // 写入脚本文件
-            File proxyFile = new File(baseDir + "/proxy.js");
-            java.nio.file.Files.write(proxyFile.toPath(), proxyScript.getBytes());
-
-            // 2. 启动代理服务器
-            System.out.println("🚀 启动代理服务器...");
-            ProcessBuilder proxyPb = new ProcessBuilder(nodeBin, proxyFile.getAbsolutePath());
-            proxyPb.environment().putAll(env);
-            proxyPb.inheritIO();
-            proxyPb.start().waitFor();
-
+            while (true) {
+                Socket client = server.accept();
+                pool.submit(() -> handleClient(client));
+            }
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+    
+    static void handleClient(Socket client) {
+        try {
+            client.setSoTimeout(30000);
+            InputStream in = client.getInputStream();
+            OutputStream out = client.getOutputStream();
+            
+            // 读取请求头
+            BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+            String firstLine = reader.readLine();
+            if (firstLine == null) {
+                client.close();
+                return;
+            }
+            
+            Map<String, String> headers = new HashMap<>();
+            String line;
+            while ((line = reader.readLine()) != null && !line.isEmpty()) {
+                int idx = line.indexOf(':');
+                if (idx > 0) {
+                    headers.put(line.substring(0, idx).trim().toLowerCase(), 
+                               line.substring(idx + 1).trim());
+                }
+            }
+            
+            // 验证密码
+            String auth = headers.get("proxy-authorization");
+            if (!checkAuth(auth)) {
+                String response = "HTTP/1.1 407 Proxy Authentication Required\r\n" +
+                                  "Proxy-Authenticate: Basic realm=\"Proxy\"\r\n" +
+                                  "Content-Length: 0\r\n\r\n";
+                out.write(response.getBytes());
+                out.flush();
+                client.close();
+                return;
+            }
+            
+            String[] parts = firstLine.split(" ");
+            String method = parts[0];
+            String target = parts[1];
+            
+            if ("CONNECT".equalsIgnoreCase(method)) {
+                // HTTPS 隧道
+                handleConnect(client, target, out);
+            } else {
+                // HTTP 代理
+                handleHttp(client, method, target, headers, in, out);
+            }
+            
+        } catch (Exception e) {
+            // 静默处理
+        } finally {
+            try { client.close(); } catch (Exception e) {}
+        }
+    }
+    
+    static boolean checkAuth(String auth) {
+        if (auth == null) return false;
+        try {
+            String encoded = auth.replace("Basic ", "").trim();
+            String decoded = new String(Base64.getDecoder().decode(encoded));
+            return decoded.equals(USERNAME + ":" + PASSWORD);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    static void handleConnect(Socket client, String target, OutputStream clientOut) {
+        try {
+            String[] hp = target.split(":");
+            String host = hp[0];
+            int port = hp.length > 1 ? Integer.parseInt(hp[1]) : 443;
+            
+            Socket remote = new Socket();
+            remote.connect(new InetSocketAddress(host, port), 10000);
+            remote.setSoTimeout(30000);
+            
+            // 发送连接成功
+            String response = "HTTP/1.1 200 Connection Established\r\n\r\n";
+            clientOut.write(response.getBytes());
+            clientOut.flush();
+            
+            // 双向转发
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            
+            executor.submit(() -> {
+                try {
+                    pipe(client.getInputStream(), remote.getOutputStream());
+                } catch (Exception e) {}
+            });
+            
+            executor.submit(() -> {
+                try {
+                    pipe(remote.getInputStream(), client.getOutputStream());
+                } catch (Exception e) {}
+            });
+            
+            executor.shutdown();
+            executor.awaitTermination(5, TimeUnit.MINUTES);
+            
+            remote.close();
+            
+        } catch (Exception e) {
+            try {
+                String response = "HTTP/1.1 502 Bad Gateway\r\n\r\n";
+                clientOut.write(response.getBytes());
+            } catch (Exception ex) {}
+        }
+    }
+    
+    static void handleHttp(Socket client, String method, String target, 
+                           Map<String, String> headers, InputStream clientIn, 
+                           OutputStream clientOut) {
+        try {
+            URL url = new URL(target);
+            String host = url.getHost();
+            int port = url.getPort() > 0 ? url.getPort() : 80;
+            
+            Socket remote = new Socket();
+            remote.connect(new InetSocketAddress(host, port), 10000);
+            remote.setSoTimeout(30000);
+            
+            OutputStream remoteOut = remote.getOutputStream();
+            InputStream remoteIn = remote.getInputStream();
+            
+            // 构建请求
+            String path = url.getPath();
+            if (url.getQuery() != null) path += "?" + url.getQuery();
+            if (path.isEmpty()) path = "/";
+            
+            StringBuilder req = new StringBuilder();
+            req.append(method).append(" ").append(path).append(" HTTP/1.1\r\n");
+            req.append("Host: ").append(host).append("\r\n");
+            
+            for (Map.Entry<String, String> h : headers.entrySet()) {
+                if (!h.getKey().equals("proxy-authorization") && 
+                    !h.getKey().equals("proxy-connection")) {
+                    req.append(h.getKey()).append(": ").append(h.getValue()).append("\r\n");
+                }
+            }
+            req.append("\r\n");
+            
+            remoteOut.write(req.toString().getBytes());
+            remoteOut.flush();
+            
+            // 转发响应
+            pipe(remoteIn, clientOut);
+            
+            remote.close();
+            
+        } catch (Exception e) {
+            try {
+                String response = "HTTP/1.1 502 Bad Gateway\r\n\r\n";
+                clientOut.write(response.getBytes());
+            } catch (Exception ex) {}
+        }
+    }
+    
+    static void pipe(InputStream in, OutputStream out) throws IOException {
+        byte[] buffer = new byte[8192];
+        int len;
+        while ((len = in.read(buffer)) != -1) {
+            out.write(buffer, 0, len);
+            out.flush();
         }
     }
 }
