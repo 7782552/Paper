@@ -8,7 +8,7 @@ public class PaperBootstrap {
         String baseDir = "/home/container";
         int PORT = 11993;
         String PASSWORD = "zenix2024";
-        String SERVER_IP = "217.160.3.69";  // WispByte 服务器 IP
+        String SERVER_IP = "217.160.3.69";
         
         try {
             System.out.println("🚀 部署 Hysteria2 高速节点（WispByte）...");
@@ -70,12 +70,10 @@ public class PaperBootstrap {
                 "  type: password\n" +
                 "  password: " + PASSWORD + "\n" +
                 "\n" +
-                "# 速度优化\n" +
                 "bandwidth:\n" +
                 "  up: 200 mbps\n" +
                 "  down: 200 mbps\n" +
                 "\n" +
-                "# QUIC 优化\n" +
                 "quic:\n" +
                 "  initStreamReceiveWindow: 8388608\n" +
                 "  maxStreamReceiveWindow: 8388608\n" +
@@ -85,7 +83,6 @@ public class PaperBootstrap {
                 "  maxIncomingStreams: 1024\n" +
                 "  disablePathMTUDiscovery: false\n" +
                 "\n" +
-                "# 伪装\n" +
                 "masquerade:\n" +
                 "  type: proxy\n" +
                 "  proxy:\n" +
@@ -120,29 +117,62 @@ public class PaperBootstrap {
             System.out.println("    up: \"200 Mbps\"");
             System.out.println("    down: \"200 Mbps\"");
             System.out.println("");
-            System.out.println("=== 📱 NekoBox/Matsuri 导入 ===");
-            System.out.println("hysteria2://" + PASSWORD + "@" + SERVER_IP + ":" + PORT + "?insecure=1#WispByte-Hysteria2");
-            System.out.println("");
             System.out.println("══════════════════════════════════════════════════");
-            System.out.println("🔄 Hysteria2 服务运行中...");
+            System.out.println("🔄 Hysteria2 服务运行中（自动重启已启用）...");
             System.out.println("══════════════════════════════════════════════════");
             
-            // 启动 Hysteria2
-            ProcessBuilder pb = new ProcessBuilder(
-                baseDir + "/hysteria", "server", "-c", baseDir + "/config.yaml"
-            );
-            pb.directory(new File(baseDir));
-            pb.inheritIO();
-            pb.start().waitFor();
+            // 无限循环 - 自动重启 Hysteria2
+            while (true) {
+                try {
+                    System.out.println("[" + java.time.LocalDateTime.now() + "] 启动 Hysteria2...");
+                    
+                    ProcessBuilder pb = new ProcessBuilder(
+                        baseDir + "/hysteria", "server", "-c", baseDir + "/config.yaml"
+                    );
+                    pb.directory(new File(baseDir));
+                    pb.inheritIO();
+                    
+                    Process process = pb.start();
+                    
+                    // 等待进程结束
+                    int exitCode = process.waitFor();
+                    
+                    System.out.println("[" + java.time.LocalDateTime.now() + "] Hysteria2 退出，代码: " + exitCode);
+                    System.out.println("⏳ 5秒后自动重启...");
+                    
+                    // 等待5秒后重启
+                    Thread.sleep(5000);
+                    
+                } catch (Exception e) {
+                    System.out.println("❌ Hysteria2 异常: " + e.getMessage());
+                    System.out.println("⏳ 10秒后重试...");
+                    Thread.sleep(10000);
+                }
+            }
             
         } catch (Exception e) {
             System.out.println("❌ 部署失败: " + e.getMessage());
             e.printStackTrace();
+            
+            // 即使部署失败也保持运行
+            System.out.println("🔄 保持进程运行中...");
+            keepAlive();
+        }
+    }
+    
+    // 保持进程存活
+    static void keepAlive() {
+        while (true) {
+            try {
+                Thread.sleep(60000); // 每60秒输出一次
+                System.out.println("[" + java.time.LocalDateTime.now() + "] 💓 进程存活中...");
+            } catch (Exception e) {
+                // 忽略
+            }
         }
     }
     
     static void generateCertWithKeytool(String baseDir, String cn) throws Exception {
-        // 生成 keystore
         runCmd(baseDir, "keytool", "-genkeypair",
             "-alias", "hysteria",
             "-keyalg", "RSA",
@@ -155,7 +185,6 @@ public class PaperBootstrap {
             "-dname", "CN=" + cn
         );
         
-        // 导出证书
         runCmd(baseDir, "keytool", "-exportcert",
             "-alias", "hysteria",
             "-keystore", baseDir + "/keystore.p12",
@@ -165,7 +194,6 @@ public class PaperBootstrap {
             "-file", baseDir + "/server.crt"
         );
         
-        // 导出私钥
         runCmd(baseDir, "openssl", "pkcs12",
             "-in", baseDir + "/keystore.p12",
             "-nocerts", "-nodes",
