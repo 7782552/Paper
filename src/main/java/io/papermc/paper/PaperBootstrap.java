@@ -6,8 +6,7 @@ import java.net.*;
 public class PaperBootstrap {
     public static void main(String[] args) {
         String baseDir = "/home/container";
-        int HY_PORT = 30194;      // Hysteria2 用主端口 (UDP)
-        int SS_PORT = 30194;      // Shadowsocks 也用同端口 (TCP) - 实际不冲突
+        int PORT = 30194;
         String PASSWORD = "zenix2024";
         
         try {
@@ -16,71 +15,64 @@ public class PaperBootstrap {
             
             // 检测服务器 IP
             System.out.println("🔍 检测服务器网络...");
-            String serverIP = "node.zenix.sg";
             try {
                 URL ipv4 = new URL("https://api.ipify.org");
                 BufferedReader r4 = new BufferedReader(new InputStreamReader(ipv4.openStream()));
-                String ip = r4.readLine();
-                System.out.println("📍 IPv4: " + ip);
+                System.out.println("📍 IPv4: " + r4.readLine());
             } catch (Exception e) {
                 System.out.println("📍 IPv4: 使用域名");
             }
             System.out.println("");
             
-            // ==================== 节点1: Hysteria2 ====================
+            // ==================== Hysteria2 ====================
             File hysteria = new File(baseDir + "/hysteria");
             if (!hysteria.exists()) {
-                System.out.println("📦 [1/4] 下载 Hysteria2...");
+                System.out.println("📦 [1/3] 下载 Hysteria2...");
                 downloadFile(
                     "https://github.com/apernet/hysteria/releases/download/app%2Fv2.6.1/hysteria-linux-amd64",
                     baseDir + "/hysteria"
                 );
                 runCmd(baseDir, "chmod", "+x", "hysteria");
             } else {
-                System.out.println("📦 [1/4] Hysteria2 已存在 ✓");
+                System.out.println("📦 [1/3] Hysteria2 已存在 ✓");
             }
             
-            // ==================== 节点2: Shadowsocks ====================
-            File ss = new File(baseDir + "/shadowsocks-server");
-            if (!ss.exists()) {
-                System.out.println("📦 [2/4] 下载 Shadowsocks...");
+            // ==================== Xray (更快的 Shadowsocks) ====================
+            File xray = new File(baseDir + "/xray");
+            if (!xray.exists()) {
+                System.out.println("📦 [2/3] 下载 Xray...");
                 downloadFile(
-                    "https://github.com/shadowsocks/go-shadowsocks2/releases/download/v0.1.5/shadowsocks2-linux.gz",
-                    baseDir + "/ss.gz"
+                    "https://github.com/XTLS/Xray-core/releases/download/v1.8.24/Xray-linux-64.zip",
+                    baseDir + "/xray.zip"
                 );
-                runCmd(baseDir, "gzip", "-d", "ss.gz");
-                runCmd(baseDir, "mv", "ss", "shadowsocks-server");
-                runCmd(baseDir, "chmod", "+x", "shadowsocks-server");
+                runCmd(baseDir, "unzip", "-o", "xray.zip", "xray");
+                runCmd(baseDir, "chmod", "+x", "xray");
+                new File(baseDir + "/xray.zip").delete();
             } else {
-                System.out.println("📦 [2/4] Shadowsocks 已存在 ✓");
+                System.out.println("📦 [2/3] Xray 已存在 ✓");
             }
             
             // 生成证书
             File cert = new File(baseDir + "/server.crt");
             if (!cert.exists()) {
-                System.out.println("📦 [3/4] 生成证书...");
-                try {
-                    ProcessBuilder pb = new ProcessBuilder(
-                        "openssl", "req", "-x509", "-nodes", "-newkey", "rsa:2048",
-                        "-keyout", baseDir + "/server.key",
-                        "-out", baseDir + "/server.crt",
-                        "-days", "3650",
-                        "-subj", "/CN=" + serverIP
-                    );
-                    pb.directory(new File(baseDir));
-                    pb.inheritIO();
-                    pb.start().waitFor();
-                } catch (Exception e) {
-                    generateCertWithKeytool(baseDir, serverIP);
-                }
+                System.out.println("📦 [3/3] 生成证书...");
+                ProcessBuilder pb = new ProcessBuilder(
+                    "openssl", "req", "-x509", "-nodes", "-newkey", "rsa:2048",
+                    "-keyout", baseDir + "/server.key",
+                    "-out", baseDir + "/server.crt",
+                    "-days", "3650",
+                    "-subj", "/CN=node.zenix.sg"
+                );
+                pb.directory(new File(baseDir));
+                pb.inheritIO();
+                pb.start().waitFor();
             } else {
-                System.out.println("📦 [3/4] 证书已存在 ✓");
+                System.out.println("📦 [3/3] 证书已存在 ✓");
             }
             
-            // 创建 Hysteria2 配置（只用 UDP，不开 TCP）
-            System.out.println("📦 [4/4] 创建配置文件...");
+            // Hysteria2 配置
             String hyConfig = 
-                "listen: :" + HY_PORT + "\n" +
+                "listen: :" + PORT + "\n" +
                 "\n" +
                 "tls:\n" +
                 "  cert: /home/container/server.crt\n" +
@@ -101,14 +93,32 @@ public class PaperBootstrap {
                 "  maxConnReceiveWindow: 20971520\n" +
                 "  maxIdleTimeout: 60s\n" +
                 "  maxIncomingStreams: 1024\n" +
-                "  disablePathMTUDiscovery: false\n" +
                 "\n" +
                 "masquerade:\n" +
                 "  type: proxy\n" +
                 "  proxy:\n" +
                 "    url: https://www.bing.com\n" +
                 "    rewriteHost: true\n";
-            writeFile(baseDir + "/config.yaml", hyConfig);
+            writeFile(baseDir + "/hy-config.yaml", hyConfig);
+            
+            // Xray Shadowsocks 配置（高性能版）
+            String xrayConfig = "{\n" +
+                "  \"log\": { \"loglevel\": \"warning\" },\n" +
+                "  \"inbounds\": [{\n" +
+                "    \"port\": " + PORT + ",\n" +
+                "    \"protocol\": \"shadowsocks\",\n" +
+                "    \"settings\": {\n" +
+                "      \"method\": \"2022-blake3-aes-128-gcm\",\n" +
+                "      \"password\": \"" + java.util.Base64.getEncoder().encodeToString(PASSWORD.getBytes()).substring(0, 22) + "==\",\n" +
+                "      \"network\": \"tcp,udp\"\n" +
+                "    }\n" +
+                "  }],\n" +
+                "  \"outbounds\": [{ \"protocol\": \"freedom\" }]\n" +
+                "}\n";
+            writeFile(baseDir + "/xray-config.json", xrayConfig);
+            
+            // 生成 SS 2022 密码
+            String ss2022Pass = java.util.Base64.getEncoder().encodeToString(PASSWORD.getBytes()).substring(0, 22) + "==";
             
             // 显示配置
             System.out.println("");
@@ -116,54 +126,51 @@ public class PaperBootstrap {
             System.out.println("║         ✅ 双协议高速节点部署完成！                     ║");
             System.out.println("╠══════════════════════════════════════════════════════════╣");
             System.out.println("║  📍 地址: node.zenix.sg                                  ║");
-            System.out.println("║  📍 端口: " + HY_PORT + "                                         ║");
-            System.out.println("║  🔑 密码: " + PASSWORD + "                                   ║");
+            System.out.println("║  📍 端口: " + PORT + "                                         ║");
             System.out.println("╚══════════════════════════════════════════════════════════╝");
             System.out.println("");
             System.out.println("┌──────────────────────────────────────────────────────────┐");
-            System.out.println("│  🖥️  节点1: Hysteria2（电脑/安卓，速度最快）             │");
+            System.out.println("│  🖥️  节点1: Hysteria2（电脑/安卓）                       │");
             System.out.println("├──────────────────────────────────────────────────────────┤");
-            System.out.println("│  协议: Hysteria2 (UDP)                                   │");
-            System.out.println("│  端口: " + HY_PORT + "                                            │");
+            System.out.println("│  协议: Hysteria2 (UDP) - 速度最快                        │");
+            System.out.println("│  端口: " + PORT + "                                            │");
+            System.out.println("│  密码: " + PASSWORD + "                                      │");
             System.out.println("│                                                          │");
             System.out.println("│  v2rayN 导入:                                            │");
-            System.out.println("│  hysteria2://" + PASSWORD + "@node.zenix.sg:" + HY_PORT + "?insecure=1#Zenix-Hy2");
+            System.out.println("│  hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1#Zenix-Hy2");
             System.out.println("└──────────────────────────────────────────────────────────┘");
             System.out.println("");
             System.out.println("┌──────────────────────────────────────────────────────────┐");
-            System.out.println("│  📱 节点2: Shadowsocks（苹果手机）                       │");
+            System.out.println("│  📱 节点2: Shadowsocks 2022（苹果手机）                  │");
             System.out.println("├──────────────────────────────────────────────────────────┤");
-            System.out.println("│  协议: Shadowsocks (TCP)                                 │");
-            System.out.println("│  端口: " + SS_PORT + "                                            │");
-            System.out.println("│  密码: " + PASSWORD + "                                      │");
-            System.out.println("│  加密: chacha20-ietf-poly1305                            │");
+            System.out.println("│  协议: Shadowsocks 2022 (TCP/UDP) - 新协议更快           │");
+            System.out.println("│  端口: " + PORT + "                                            │");
+            System.out.println("│  密码: " + ss2022Pass + "               │");
+            System.out.println("│  加密: 2022-blake3-aes-128-gcm                           │");
             System.out.println("│                                                          │");
             System.out.println("│  Shadowrocket 配置:                                      │");
             System.out.println("│    类型: Shadowsocks                                     │");
             System.out.println("│    地址: node.zenix.sg                                   │");
-            System.out.println("│    端口: " + SS_PORT + "                                          │");
-            System.out.println("│    密码: " + PASSWORD + "                                    │");
-            System.out.println("│    加密: chacha20-ietf-poly1305                          │");
+            System.out.println("│    端口: " + PORT + "                                          │");
+            System.out.println("│    密码: " + ss2022Pass + "             │");
+            System.out.println("│    加密: 2022-blake3-aes-128-gcm                         │");
             System.out.println("└──────────────────────────────────────────────────────────┘");
             System.out.println("");
             System.out.println("══════════════════════════════════════════════════════════");
             System.out.println("🔄 启动服务...");
             System.out.println("══════════════════════════════════════════════════════════");
             
-            // 先启动 Hysteria2（后台运行）
+            // 启动 Hysteria2（后台）
             ProcessBuilder hyPb = new ProcessBuilder(
-                baseDir + "/hysteria", "server", "-c", baseDir + "/config.yaml"
+                baseDir + "/hysteria", "server", "-c", baseDir + "/hy-config.yaml"
             );
             hyPb.directory(new File(baseDir));
             hyPb.redirectErrorStream(true);
             Process hyProcess = hyPb.start();
             
-            // 读取 Hysteria2 输出
             new Thread(() -> {
                 try {
-                    BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(hyProcess.getInputStream())
-                    );
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(hyProcess.getInputStream()));
                     String line;
                     while ((line = reader.readLine()) != null) {
                         System.out.println("[Hy2] " + line);
@@ -172,56 +179,23 @@ public class PaperBootstrap {
             }).start();
             
             Thread.sleep(2000);
-            System.out.println("✅ Hysteria2 已启动 (UDP:" + HY_PORT + ")");
+            System.out.println("✅ Hysteria2 已启动 (UDP:" + PORT + ")");
             
-            // 启动 Shadowsocks（前台运行）
-            System.out.println("✅ Shadowsocks 启动中 (TCP:" + SS_PORT + ")...");
+            // 启动 Xray Shadowsocks（前台）
+            System.out.println("✅ Shadowsocks 2022 启动中 (TCP/UDP:" + PORT + ")...");
             System.out.println("");
             
-            ProcessBuilder ssPb = new ProcessBuilder(
-                baseDir + "/shadowsocks-server",
-                "-s", "ss://AEAD_CHACHA20_POLY1305:" + PASSWORD + "@:" + SS_PORT,
-                "-udp",
-                "-verbose"
+            ProcessBuilder xrayPb = new ProcessBuilder(
+                baseDir + "/xray", "run", "-c", baseDir + "/xray-config.json"
             );
-            ssPb.directory(new File(baseDir));
-            ssPb.inheritIO();
-            ssPb.start().waitFor();
+            xrayPb.directory(new File(baseDir));
+            xrayPb.inheritIO();
+            xrayPb.start().waitFor();
             
         } catch (Exception e) {
             System.out.println("❌ 部署失败: " + e.getMessage());
             e.printStackTrace();
         }
-    }
-    
-    static void generateCertWithKeytool(String baseDir, String cn) throws Exception {
-        runCmd(baseDir, "keytool", "-genkeypair",
-            "-alias", "hysteria",
-            "-keyalg", "RSA",
-            "-keysize", "2048",
-            "-validity", "3650",
-            "-keystore", baseDir + "/keystore.p12",
-            "-storetype", "PKCS12",
-            "-storepass", "changeit",
-            "-keypass", "changeit",
-            "-dname", "CN=" + cn
-        );
-        
-        runCmd(baseDir, "keytool", "-exportcert",
-            "-alias", "hysteria",
-            "-keystore", baseDir + "/keystore.p12",
-            "-storetype", "PKCS12",
-            "-storepass", "changeit",
-            "-rfc",
-            "-file", baseDir + "/server.crt"
-        );
-        
-        runCmd(baseDir, "openssl", "pkcs12",
-            "-in", baseDir + "/keystore.p12",
-            "-nocerts", "-nodes",
-            "-out", baseDir + "/server.key",
-            "-passin", "pass:changeit"
-        );
     }
     
     static void downloadFile(String urlStr, String dest) throws Exception {
@@ -246,7 +220,7 @@ public class PaperBootstrap {
             while ((len = in.read(buffer)) != -1) {
                 out.write(buffer, 0, len);
                 total += len;
-                System.out.print("\r   已下载: " + (total / 1024) + " KB");
+                System.out.print("\r   已下载: " + (total / 1024 / 1024) + " MB");
             }
             System.out.println(" ✓");
         }
