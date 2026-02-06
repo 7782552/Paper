@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             String geminiApiKey = "AIzaSyB_cCHb6nSws8C3UWaPI3Mg6M503kggX7Q";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
-            String pairingCode = "NZHGKE5W";
+            String pairingCode = "4Y35NGYX";
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
