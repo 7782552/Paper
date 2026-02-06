@@ -10,7 +10,7 @@ public class PaperBootstrap {
         String PASSWORD = "zenix2024";
         
         try {
-            System.out.println("🚀 部署 Hysteria2 稳定版节点...");
+            System.out.println("🚀 部署 Hysteria2 高性能节点（4GB内存优化版）...");
             System.out.println("");
             
             // 检测服务器 IP
@@ -25,6 +25,7 @@ public class PaperBootstrap {
                 BufferedReader r4 = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 detectedIP = r4.readLine();
                 System.out.println("📍 IPv4: " + detectedIP);
+                r4.close();
             } catch (Exception e) {
                 System.out.println("📍 IPv4: 检测失败，使用域名");
             }
@@ -57,8 +58,12 @@ public class PaperBootstrap {
                     );
                     pb.directory(new File(baseDir));
                     pb.inheritIO();
-                    pb.start().waitFor();
-                    System.out.println("   证书生成成功 ✓");
+                    int exitCode = pb.start().waitFor();
+                    if (exitCode == 0) {
+                        System.out.println("   证书生成成功 ✓");
+                    } else {
+                        throw new Exception("openssl 失败");
+                    }
                 } catch (Exception e) {
                     System.out.println("   使用 keytool 生成证书...");
                     generateCertWithKeytool(baseDir, serverIP);
@@ -67,8 +72,8 @@ public class PaperBootstrap {
                 System.out.println("📦 [2/3] 证书已存在 ✓");
             }
             
-            // 创建稳定性优化配置
-            System.out.println("📦 [3/3] 创建稳定优化配置...");
+            // 创建高性能配置 - 4GB内存优化
+            System.out.println("📦 [3/3] 创建高性能配置...");
             String config = 
                 "listen: :" + PORT + "\n" +
                 "\n" +
@@ -80,99 +85,97 @@ public class PaperBootstrap {
                 "  type: password\n" +
                 "  password: " + PASSWORD + "\n" +
                 "\n" +
-                "# 不设置带宽限制，让客户端自己协商\n" +
-                "# 这样更稳定，避免带宽不匹配问题\n" +
+                "# 带宽设置\n" +
+                "bandwidth:\n" +
+                "  up: 200 mbps\n" +
+                "  down: 200 mbps\n" +
                 "\n" +
-                "# QUIC 稳定性优化\n" +
+                "# QUIC 高性能优化 - 4GB内存版本\n" +
                 "quic:\n" +
-                "  initStreamReceiveWindow: 4194304\n" +      // 4MB 降低内存压力
-                "  maxStreamReceiveWindow: 8388608\n" +       // 8MB
-                "  initConnReceiveWindow: 8388608\n" +        // 8MB
-                "  maxConnReceiveWindow: 16777216\n" +        // 16MB
-                "  maxIdleTimeout: 300s\n" +                  // 5分钟超时
-                "  maxIncomingStreams: 512\n" +               // 降低并发数提高稳定性
-                "  disablePathMTUDiscovery: true\n" +         // 禁用MTU发现避免问题
+                "  initStreamReceiveWindow: 8388608\n" +
+                "  maxStreamReceiveWindow: 16777216\n" +
+                "  initConnReceiveWindow: 20971520\n" +
+                "  maxConnReceiveWindow: 41943040\n" +
+                "  maxIdleTimeout: 120s\n" +
+                "  maxIncomingStreams: 1024\n" +
+                "  disablePathMTUDiscovery: false\n" +
                 "\n" +
-                "# 速度限制 (可选，根据实际带宽设置)\n" +
-                "speedTest: false\n" +
-                "\n" +
-                "# 出站优化\n" +
-                "outbounds:\n" +
-                "  - name: direct\n" +
-                "    type: direct\n" +
-                "    direct:\n" +
-                "      mode: auto\n" +
-                "      bindIPv4: 0.0.0.0\n" +
-                "\n" +
-                "# 伪装 - 使用更稳定的目标\n" +
+                "# 伪装设置\n" +
                 "masquerade:\n" +
                 "  type: proxy\n" +
                 "  proxy:\n" +
-                "    url: https://www.microsoft.com\n" +
+                "    url: https://www.bing.com\n" +
                 "    rewriteHost: true\n";
             
             writeFile(baseDir + "/config.yaml", config);
             
             // 显示配置信息
             System.out.println("");
-            System.out.println("╔══════════════════════════════════════════════════╗");
-            System.out.println("║     ✅ Hysteria2 稳定版节点部署完成！            ║");
-            System.out.println("╠══════════════════════════════════════════════════╣");
-            System.out.println("║  📍 地址: node.zenix.sg                          ║");
-            System.out.println("║  📍 端口: " + PORT + "                                 ║");
-            System.out.println("║  🔑 密码: " + PASSWORD + "                           ║");
-            System.out.println("║  ⏱️  超时: 300秒                                  ║");
-            System.out.println("╚══════════════════════════════════════════════════╝");
+            System.out.println("╔══════════════════════════════════════════════════════╗");
+            System.out.println("║     ✅ Hysteria2 高性能节点部署完成！                ║");
+            System.out.println("╠══════════════════════════════════════════════════════╣");
+            System.out.println("║  📍 地址: node.zenix.sg                              ║");
+            System.out.println("║  📍 端口: " + PORT + "                                     ║");
+            System.out.println("║  🔑 密码: " + PASSWORD + "                               ║");
+            System.out.println("║  🚄 带宽: 200 Mbps                                   ║");
+            System.out.println("║  ⏱️  超时: 120秒 (最大值)                             ║");
+            System.out.println("║  💾 内存: 4GB 高性能模式                             ║");
+            System.out.println("╚══════════════════════════════════════════════════════╝");
             System.out.println("");
             
-            // v2rayN 链接 - 添加更多稳定性参数
-            System.out.println("=== 📱 v2rayN 导入链接 (稳定版) ===");
-            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + 
-                "?insecure=1&mport=" + PORT + "#Zenix-Hysteria2-Stable");
+            // v2rayN 导入链接
+            System.out.println("=== 📱 v2rayN 导入链接 ===");
+            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1#Zenix-Hysteria2");
             System.out.println("");
             
-            // Clash Meta 配置 - 优化版
-            System.out.println("=== 📱 Clash Meta 配置 (稳定版) ===");
+            // Clash Meta 配置
+            System.out.println("=== 📱 Clash Meta 配置 ===");
             System.out.println("proxies:");
-            System.out.println("  - name: Zenix-Hysteria2-Stable");
+            System.out.println("  - name: Zenix-Hysteria2");
             System.out.println("    type: hysteria2");
             System.out.println("    server: node.zenix.sg");
             System.out.println("    port: " + PORT);
             System.out.println("    password: " + PASSWORD);
             System.out.println("    skip-cert-verify: true");
-            System.out.println("    # 不设置带宽，自动协商更稳定");
-            System.out.println("    # up: \"100 Mbps\"");
-            System.out.println("    # down: \"100 Mbps\"");
+            System.out.println("    up: \"200 Mbps\"");
+            System.out.println("    down: \"200 Mbps\"");
             System.out.println("");
             
-            System.out.println("=== 📱 NekoBox 导入 ===");
-            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + 
-                "?insecure=1#Zenix-Stable");
+            // NekoBox 导入
+            System.out.println("=== 📱 NekoBox/Matsuri 导入 ===");
+            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1#Zenix-Hysteria2");
             System.out.println("");
             
-            System.out.println("══════════════════════════════════════════════════");
+            // Shadowrocket 配置
+            System.out.println("=== 📱 Shadowrocket 导入 ===");
+            System.out.println("hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1&peer=node.zenix.sg#Zenix-Hysteria2");
+            System.out.println("");
+            
+            System.out.println("══════════════════════════════════════════════════════");
             System.out.println("🔄 Hysteria2 服务启动中...");
-            System.out.println("══════════════════════════════════════════════════");
+            System.out.println("══════════════════════════════════════════════════════");
+            System.out.println("");
             
-            // 启动 Hysteria2 - 添加日志级别控制
+            // 启动 Hysteria2
             ProcessBuilder pb = new ProcessBuilder(
                 baseDir + "/hysteria", "server", 
-                "-c", baseDir + "/config.yaml",
-                "--log-level", "info"  // 减少WARN日志
+                "-c", baseDir + "/config.yaml"
             );
             pb.directory(new File(baseDir));
             pb.inheritIO();
             
-            // 启动并监控
             Process process = pb.start();
             
             // 添加关闭钩子
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                System.out.println("");
                 System.out.println("⏹️ 正在关闭 Hysteria2...");
                 process.destroy();
             }));
             
-            process.waitFor();
+            // 等待进程结束
+            int exitCode = process.waitFor();
+            System.out.println("Hysteria2 已退出，退出码: " + exitCode);
             
         } catch (Exception e) {
             System.out.println("❌ 部署失败: " + e.getMessage());
@@ -181,6 +184,12 @@ public class PaperBootstrap {
     }
     
     static void generateCertWithKeytool(String baseDir, String cn) throws Exception {
+        // 删除旧的 keystore
+        File keystore = new File(baseDir + "/keystore.p12");
+        if (keystore.exists()) {
+            keystore.delete();
+        }
+        
         runCmd(baseDir, "keytool", "-genkeypair",
             "-alias", "hysteria",
             "-keyalg", "RSA",
@@ -208,13 +217,15 @@ public class PaperBootstrap {
             "-out", baseDir + "/server.key",
             "-passin", "pass:changeit"
         );
+        
+        System.out.println("   证书生成成功 ✓");
     }
     
     static void downloadFile(String urlStr, String dest) throws Exception {
         System.out.println("   下载: " + urlStr);
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
         conn.setInstanceFollowRedirects(true);
         conn.setConnectTimeout(30000);
         conn.setReadTimeout(60000);
@@ -223,20 +234,27 @@ public class PaperBootstrap {
         if (status == 302 || status == 301) {
             String newUrl = conn.getHeaderField("Location");
             conn = (HttpURLConnection) new URL(newUrl).openConnection();
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
             conn.setConnectTimeout(30000);
             conn.setReadTimeout(60000);
         }
+        
+        long totalSize = conn.getContentLengthLong();
         
         try (InputStream in = conn.getInputStream();
              FileOutputStream out = new FileOutputStream(dest)) {
             byte[] buffer = new byte[8192];
             int len;
-            long total = 0;
+            long downloaded = 0;
             while ((len = in.read(buffer)) != -1) {
                 out.write(buffer, 0, len);
-                total += len;
-                System.out.print("\r   已下载: " + (total / 1024 / 1024) + " MB");
+                downloaded += len;
+                if (totalSize > 0) {
+                    int percent = (int) (downloaded * 100 / totalSize);
+                    System.out.print("\r   已下载: " + (downloaded / 1024 / 1024) + " MB (" + percent + "%)");
+                } else {
+                    System.out.print("\r   已下载: " + (downloaded / 1024 / 1024) + " MB");
+                }
             }
             System.out.println(" ✓");
         }
@@ -254,7 +272,7 @@ public class PaperBootstrap {
         pb.inheritIO();
         int exitCode = pb.start().waitFor();
         if (exitCode != 0) {
-            System.out.println("   命令执行警告，退出码: " + exitCode);
+            throw new Exception("命令执行失败: " + String.join(" ", cmd));
         }
     }
 }
