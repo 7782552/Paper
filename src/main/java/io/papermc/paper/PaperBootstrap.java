@@ -27,16 +27,15 @@ public class PaperBootstrap {
             conn.setRequestMethod("GET");
             conn.getResponseCode();
 
-            // 1. 【关键】清理旧的 OpenClaw 配置（解决 anthropic 问题）
+            // 1. 清理旧配置
             System.out.println("🧹 清理旧配置...");
             File openclawDir = new File(baseDir + "/.openclaw");
             if (openclawDir.exists()) {
                 deleteDirectory(openclawDir);
-                System.out.println("✅ 已删除旧的 .openclaw 目录");
             }
             Thread.sleep(500);
 
-            // 2. 运行 onboard 配置 Gemini
+            // 2. 运行 onboard
             System.out.println("📝 运行 onboard 配置 Gemini...");
             ProcessBuilder onboardPb = new ProcessBuilder(
                 nodeBin, ocBin, "onboard",
@@ -59,19 +58,30 @@ public class PaperBootstrap {
             onboardPb.inheritIO();
             onboardPb.start().waitFor();
 
-            // 3. 配置 Telegram Bot Token
+            // 3. 配置 Telegram
             System.out.println("📝 配置 Telegram Bot...");
             runCommand(env, nodeBin, ocBin, "config", "set", 
                 "channels.telegram.botToken", telegramToken);
 
-            // 4. 【关键】设置模型 - 不带 provider 前缀
+            // 4. 【修复】直接写入配置文件设置模型
             System.out.println("📝 设置模型 Gemini 2.0...");
+            File configFile = new File(baseDir + "/.openclaw/openclaw.json");
+            if (configFile.exists()) {
+                String content = new String(java.nio.file.Files.readAllBytes(configFile.toPath()));
+                // 替换模型配置
+                content = content.replace("\"primary\":\"anthropic/", "\"primary\":\"");
+                content = content.replace("\"primary\": \"anthropic/", "\"primary\": \"");
+                // 确保使用 gemini-2.0-flash
+                if (!content.contains("gemini-2.0-flash")) {
+                    content = content.replace("\"primary\":", "\"primary\": \"gemini-2.0-flash\" //");
+                }
+                java.nio.file.Files.write(configFile.toPath(), content.getBytes());
+                System.out.println("✅ 配置文件已更新");
+            }
+            
+            // 5. 用 config set 再试一次
             runCommand(env, nodeBin, ocBin, "config", "set", 
-                "agents.defaults.model.primary", "gemini-2.0-flash");
-
-            // 5. 查看当前配置（调试用）
-            System.out.println("📋 查看当前配置...");
-            runCommand(env, nodeBin, ocBin, "config", "get");
+                "model.primary", "gemini-2.0-flash");
 
             // 6. 批准 Pairing Code
             System.out.println("✅ 批准 Pairing Code: " + pairingCode);
@@ -81,7 +91,14 @@ public class PaperBootstrap {
             System.out.println("🔧 运行 doctor --fix...");
             runCommand(env, nodeBin, ocBin, "doctor", "--fix");
 
-            // 8. 启动 n8n
+            // 8. 打印配置文件内容（调试）
+            System.out.println("📋 当前配置文件内容：");
+            if (configFile.exists()) {
+                String content = new String(java.nio.file.Files.readAllBytes(configFile.toPath()));
+                System.out.println(content);
+            }
+
+            // 9. 启动 n8n
             System.out.println("🚀 启动 n8n (端口 30196)...");
             File n8nDir = new File(baseDir + "/.n8n");
             if (n8nDir.exists()) {
@@ -115,7 +132,7 @@ public class PaperBootstrap {
 
             Thread.sleep(5000);
 
-            // 9. 启动 Gateway
+            // 10. 启动 Gateway
             System.out.println("🚀 启动 OpenClaw Gateway + Telegram...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
