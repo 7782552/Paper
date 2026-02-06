@@ -63,42 +63,20 @@ public class PaperBootstrap {
             runCommand(env, nodeBin, ocBin, "config", "set", 
                 "channels.telegram.botToken", telegramToken);
 
-            // 4. 【修复】直接写入配置文件设置模型
-            System.out.println("📝 设置模型 Gemini 2.0...");
-            File configFile = new File(baseDir + "/.openclaw/openclaw.json");
-            if (configFile.exists()) {
-                String content = new String(java.nio.file.Files.readAllBytes(configFile.toPath()));
-                // 替换模型配置
-                content = content.replace("\"primary\":\"anthropic/", "\"primary\":\"");
-                content = content.replace("\"primary\": \"anthropic/", "\"primary\": \"");
-                // 确保使用 gemini-2.0-flash
-                if (!content.contains("gemini-2.0-flash")) {
-                    content = content.replace("\"primary\":", "\"primary\": \"gemini-2.0-flash\" //");
-                }
-                java.nio.file.Files.write(configFile.toPath(), content.getBytes());
-                System.out.println("✅ 配置文件已更新");
-            }
-            
-            // 5. 用 config set 再试一次
+            // 4. 【修复】设置模型（必须带 google/ 前缀）
+            System.out.println("📝 设置模型 google/gemini-2.0-flash...");
             runCommand(env, nodeBin, ocBin, "config", "set", 
-                "model.primary", "gemini-2.0-flash");
+                "agents.defaults.model.primary", "google/gemini-2.0-flash");
 
-            // 6. 批准 Pairing Code
+            // 5. 批准 Pairing Code
             System.out.println("✅ 批准 Pairing Code: " + pairingCode);
             runCommand(env, nodeBin, ocBin, "pairing", "approve", "telegram", pairingCode);
 
-            // 7. 运行 doctor --fix
+            // 6. 运行 doctor --fix
             System.out.println("🔧 运行 doctor --fix...");
             runCommand(env, nodeBin, ocBin, "doctor", "--fix");
 
-            // 8. 打印配置文件内容（调试）
-            System.out.println("📋 当前配置文件内容：");
-            if (configFile.exists()) {
-                String content = new String(java.nio.file.Files.readAllBytes(configFile.toPath()));
-                System.out.println(content);
-            }
-
-            // 9. 启动 n8n
+            // 7. 启动 n8n
             System.out.println("🚀 启动 n8n (端口 30196)...");
             File n8nDir = new File(baseDir + "/.n8n");
             if (n8nDir.exists()) {
@@ -132,7 +110,7 @@ public class PaperBootstrap {
 
             Thread.sleep(5000);
 
-            // 10. 启动 Gateway
+            // 8. 启动 Gateway
             System.out.println("🚀 启动 OpenClaw Gateway + Telegram...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
