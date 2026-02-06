@@ -11,7 +11,7 @@ public class PaperBootstrap {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
-            String googleApiKey = "你的Google AI API Key";  // ← 替换这里
+            String googleApiKey = "AIzaSyBsLv-T6U3O6bLqbrJ2XHc5BRXAXcOTW7A";  // ← 替换这里
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String pairingCode = "L4BTFFMR";
 
