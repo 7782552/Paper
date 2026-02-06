@@ -6,7 +6,8 @@ import java.net.*;
 public class PaperBootstrap {
     public static void main(String[] args) {
         String baseDir = "/home/container";
-        int PORT = 30194;
+        int HY_PORT = 30194;      // Hysteria2 用主端口 (UDP)
+        int SS_PORT = 30194;      // Shadowsocks 也用同端口 (TCP) - 实际不冲突
         String PASSWORD = "zenix2024";
         
         try {
@@ -39,16 +40,14 @@ public class PaperBootstrap {
                 System.out.println("📦 [1/4] Hysteria2 已存在 ✓");
             }
             
-            // ==================== 节点2: Shadowsocks (Go 版本，.gz 格式) ====================
+            // ==================== 节点2: Shadowsocks ====================
             File ss = new File(baseDir + "/shadowsocks-server");
             if (!ss.exists()) {
                 System.out.println("📦 [2/4] 下载 Shadowsocks...");
-                // 使用 go-shadowsocks2，是 .gz 格式不是 .xz
                 downloadFile(
                     "https://github.com/shadowsocks/go-shadowsocks2/releases/download/v0.1.5/shadowsocks2-linux.gz",
                     baseDir + "/ss.gz"
                 );
-                // 解压 .gz 文件
                 runCmd(baseDir, "gzip", "-d", "ss.gz");
                 runCmd(baseDir, "mv", "ss", "shadowsocks-server");
                 runCmd(baseDir, "chmod", "+x", "shadowsocks-server");
@@ -71,21 +70,17 @@ public class PaperBootstrap {
                     pb.directory(new File(baseDir));
                     pb.inheritIO();
                     pb.start().waitFor();
-                    System.out.println("   证书生成成功 ✓");
                 } catch (Exception e) {
-                    System.out.println("   使用 keytool 生成证书...");
                     generateCertWithKeytool(baseDir, serverIP);
                 }
             } else {
                 System.out.println("📦 [3/4] 证书已存在 ✓");
             }
             
-            // 创建配置
+            // 创建 Hysteria2 配置（只用 UDP，不开 TCP）
             System.out.println("📦 [4/4] 创建配置文件...");
-            
-            // Hysteria2 配置
             String hyConfig = 
-                "listen: :" + PORT + "\n" +
+                "listen: :" + HY_PORT + "\n" +
                 "\n" +
                 "tls:\n" +
                 "  cert: /home/container/server.crt\n" +
@@ -121,68 +116,77 @@ public class PaperBootstrap {
             System.out.println("║         ✅ 双协议高速节点部署完成！                     ║");
             System.out.println("╠══════════════════════════════════════════════════════════╣");
             System.out.println("║  📍 地址: node.zenix.sg                                  ║");
-            System.out.println("║  📍 端口: " + PORT + "                                         ║");
+            System.out.println("║  📍 端口: " + HY_PORT + "                                         ║");
             System.out.println("║  🔑 密码: " + PASSWORD + "                                   ║");
-            System.out.println("║  🚄 带宽: 200 Mbps                                       ║");
             System.out.println("╚══════════════════════════════════════════════════════════╝");
             System.out.println("");
             System.out.println("┌──────────────────────────────────────────────────────────┐");
             System.out.println("│  🖥️  节点1: Hysteria2（电脑/安卓，速度最快）             │");
             System.out.println("├──────────────────────────────────────────────────────────┤");
             System.out.println("│  协议: Hysteria2 (UDP)                                   │");
-            System.out.println("│  端口: " + PORT + "                                            │");
+            System.out.println("│  端口: " + HY_PORT + "                                            │");
             System.out.println("│                                                          │");
-            System.out.println("│  v2rayN/NekoBox 导入链接:                                │");
-            System.out.println("│  hysteria2://" + PASSWORD + "@node.zenix.sg:" + PORT + "?insecure=1#Zenix-Hy2");
+            System.out.println("│  v2rayN 导入:                                            │");
+            System.out.println("│  hysteria2://" + PASSWORD + "@node.zenix.sg:" + HY_PORT + "?insecure=1#Zenix-Hy2");
             System.out.println("└──────────────────────────────────────────────────────────┘");
             System.out.println("");
             System.out.println("┌──────────────────────────────────────────────────────────┐");
-            System.out.println("│  📱 节点2: Shadowsocks（苹果手机推荐）                   │");
+            System.out.println("│  📱 节点2: Shadowsocks（苹果手机）                       │");
             System.out.println("├──────────────────────────────────────────────────────────┤");
             System.out.println("│  协议: Shadowsocks (TCP)                                 │");
-            System.out.println("│  端口: " + PORT + "                                            │");
+            System.out.println("│  端口: " + SS_PORT + "                                            │");
             System.out.println("│  密码: " + PASSWORD + "                                      │");
-            System.out.println("│  加密: AEAD_CHACHA20_POLY1305                            │");
+            System.out.println("│  加密: chacha20-ietf-poly1305                            │");
             System.out.println("│                                                          │");
             System.out.println("│  Shadowrocket 配置:                                      │");
             System.out.println("│    类型: Shadowsocks                                     │");
             System.out.println("│    地址: node.zenix.sg                                   │");
-            System.out.println("│    端口: " + PORT + "                                          │");
+            System.out.println("│    端口: " + SS_PORT + "                                          │");
             System.out.println("│    密码: " + PASSWORD + "                                    │");
             System.out.println("│    加密: chacha20-ietf-poly1305                          │");
-            System.out.println("│                                                          │");
-            String ssUri = "AEAD_CHACHA20_POLY1305:" + PASSWORD + "@node.zenix.sg:" + PORT;
-            String ssEncoded = java.util.Base64.getEncoder().encodeToString(ssUri.getBytes()).replace("=", "");
-            System.out.println("│  导入链接:                                               │");
-            System.out.println("│  ss://" + ssEncoded + "#Zenix-SS");
             System.out.println("└──────────────────────────────────────────────────────────┘");
             System.out.println("");
             System.out.println("══════════════════════════════════════════════════════════");
-            System.out.println("🔄 启动双协议服务...");
+            System.out.println("🔄 启动服务...");
             System.out.println("══════════════════════════════════════════════════════════");
             
-            // 启动 Shadowsocks（后台）
-            ProcessBuilder ssPb = new ProcessBuilder(
-                baseDir + "/shadowsocks-server",
-                "-s", "ss://AEAD_CHACHA20_POLY1305:" + PASSWORD + "@:" + PORT,
-                "-verbose"
-            );
-            ssPb.directory(new File(baseDir));
-            ssPb.redirectErrorStream(true);
-            ssPb.start();
-            System.out.println("✅ Shadowsocks 已启动 (TCP:" + PORT + ")");
-            
-            Thread.sleep(1000);
-            
-            // 启动 Hysteria2（前台）
-            System.out.println("✅ Hysteria2 启动中 (UDP:" + PORT + ")...");
-            System.out.println("");
+            // 先启动 Hysteria2（后台运行）
             ProcessBuilder hyPb = new ProcessBuilder(
                 baseDir + "/hysteria", "server", "-c", baseDir + "/config.yaml"
             );
             hyPb.directory(new File(baseDir));
-            hyPb.inheritIO();
-            hyPb.start().waitFor();
+            hyPb.redirectErrorStream(true);
+            Process hyProcess = hyPb.start();
+            
+            // 读取 Hysteria2 输出
+            new Thread(() -> {
+                try {
+                    BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(hyProcess.getInputStream())
+                    );
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        System.out.println("[Hy2] " + line);
+                    }
+                } catch (Exception e) {}
+            }).start();
+            
+            Thread.sleep(2000);
+            System.out.println("✅ Hysteria2 已启动 (UDP:" + HY_PORT + ")");
+            
+            // 启动 Shadowsocks（前台运行）
+            System.out.println("✅ Shadowsocks 启动中 (TCP:" + SS_PORT + ")...");
+            System.out.println("");
+            
+            ProcessBuilder ssPb = new ProcessBuilder(
+                baseDir + "/shadowsocks-server",
+                "-s", "ss://AEAD_CHACHA20_POLY1305:" + PASSWORD + "@:" + SS_PORT,
+                "-udp",
+                "-verbose"
+            );
+            ssPb.directory(new File(baseDir));
+            ssPb.inheritIO();
+            ssPb.start().waitFor();
             
         } catch (Exception e) {
             System.out.println("❌ 部署失败: " + e.getMessage());
