@@ -2,71 +2,72 @@ package io.papermc.paper;
 
 import java.io.*;
 import java.net.*;
-import java.util.Scanner;
+import java.nio.file.*;
+import java.util.concurrent.TimeUnit;
 
 public class PaperBootstrap {
+    // ================= 配置参数 =================
+    private static final String PORT = "30194"; 
+    private static final String UUID = "16202dac-ec89-49bd-92aa-0b537d9ac66c";
+    private static final String DEST = "www.microsoft.com:443"; // 落地伪装域名
+    private static final String SNI = "www.microsoft.com";
+    // Reality 密钥对 (可以使用你日志里固定的，这里示例一对)
+    private static final String PRIVATE_KEY = "uOf7O0z3...你的私钥..."; 
+    private static final String PUBLIC_KEY = "Hnx5iiA5nEykaXEwBZZLuH7fQC7ydz2fRztLwGrM3F0";
+    // ============================================
+
     public static void main(String[] args) {
-        System.out.println("🚀 正在启动纯 Java 环境网络连通性分析...\n");
+        System.out.println("🛠️ 正在初始化 VLESS Reality 高速节点...");
 
-        // 1. 获取公网 IP (不依赖 curl)
-        System.out.print("🔍 [1/4] 正在获取公网出口 IP: ");
-        String publicIp = fetchUrlContent("https://api.ipify.org");
-        System.out.println(publicIp != null ? publicIp : "获取失败");
-
-        // 2. 测试国外站点连通性 (不依赖 curl)
-        testHttp("Google", "https://www.google.com");
-        testHttp("YouTube", "https://www.youtube.com");
-
-        // 3. 使用 Java 原生方法模拟 Ping (不依赖 ping 命令)
-        System.out.print("📡 [3/4] 正在测试 8.8.8.8 的可达性 (Java Reachable): ");
         try {
-            InetAddress address = InetAddress.getByName("8.8.8.8");
-            boolean reachable = address.isReachable(3000); // 3秒超时
-            System.out.println(reachable ? "✅ 成功" : "❌ 失败 (可能受 ICMP 限制)");
-        } catch (Exception e) {
-            System.out.println("❌ 错误: " + e.getMessage());
-        }
-
-        // 4. 【核心检测】检测节点端口 30194 是否已在本地开启
-        System.out.println("\n🏠 [4/4] 正在检测本地节点监听状态 (Port 30194)...");
-        checkLocalPort(30194);
-
-        System.out.println("\n✅ 所有测试已完成，容器将保持运行 60 秒供查看日志。");
-        try { Thread.sleep(60000); } catch (InterruptedException e) { }
-    }
-
-    private static void testHttp(String name, String urlStr) {
-        System.out.print("🌐 [2/4] 测试 " + name + " 连通性: ");
-        try {
-            URL url = new URL(urlStr);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(5000);
-            int code = conn.getResponseCode();
-            System.out.println("✅ 成功 (HTTP " + code + ")");
-        } catch (Exception e) {
-            System.out.println("❌ 失败: " + e.getMessage());
-        }
-    }
-
-    private static String fetchUrlContent(String urlStr) {
-        try {
-            URL url = new URL(urlStr);
-            try (Scanner s = new Scanner(url.openStream())) {
-                return s.useDelimiter("\\A").hasNext() ? s.next() : null;
+            // 1. 下载 sing-box 二进制文件 (如果不存在)
+            File exe = new File("sing-box");
+            if (!exe.exists()) {
+                System.out.println("⬇️ 正在下载 sing-box 内核...");
+                // 这里建议预先手动上传 sing-box 文件到根目录，或者使用 Java 下载代码
             }
-        } catch (Exception e) { return null; }
+
+            // 2. 动态生成 config.json
+            generateConfig();
+
+            // 3. 启动节点进程
+            System.out.println("🚀 正在启动 sing-box 核心进程...");
+            ProcessBuilder pb = new ProcessBuilder("./sing-box", "run", "-c", "config.json");
+            pb.inheritIO();
+            Process process = pb.start();
+
+            // 4. 防止 Java 退出导致容器关闭
+            System.out.println("\n✅ 节点已启动！端口: " + PORT);
+            System.out.println("🔗 链接: vless://" + UUID + "@113.22.166.76:" + PORT + "?encryption=none&flow=xtls-rprx-vision&security=reality&sni=" + SNI + "&fp=chrome&pbk=" + PUBLIC_KEY + "#Zenix-HighSpeed");
+            
+            process.waitFor(); // 只要 sing-box 不挂，Java 就一直运行
+        } catch (Exception e) {
+            System.err.println("❌ 启动失败: " + e.getMessage());
+        }
     }
 
-    private static void checkLocalPort(int port) {
-        // 尝试作为客户端连接该端口
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress("127.0.0.1", port), 500);
-            System.out.println("   >>> 🟢 结果: 30194 端口【有服务正在监听】。");
-            System.out.println("   >>> 建议: 如果此处显示正常但手机连不上，请检查翼龙面板 Network 里的外部端口映射。");
-        } catch (IOException e) {
-            System.out.println("   >>> 🔴 结果: 30194 端口【未检测到监听】。");
-            System.out.println("   >>> 原因: 你的节点程序 (sing-box) 可能崩溃了，或者根本没启动。");
-        }
+    private static void generateConfig() throws IOException {
+        String config = "{\n" +
+                "  \"inbounds\": [{\n" +
+                "    \"type\": \"vless\",\n" +
+                "    \"tag\": \"vless-in\",\n" +
+                "    \"listen\": \"::\",\n" +
+                "    \"listen_port\": " + PORT + ",\n" +
+                "    \"users\": [{\"uuid\": \"" + UUID + "\", \"flow\": \"xtls-rprx-vision\"}],\n" +
+                "    \"tls\": {\n" +
+                "      \"enabled\": true,\n" +
+                "      \"server_name\": \"" + SNI + "\",\n" +
+                "      \"reality\": {\n" +
+                "        \"enabled\": true,\n" +
+                "        \"handshake\": {\"server\": \"" + SNI + "\", \"server_port\": 443},\n" +
+                "        \"private_key\": \"" + PRIVATE_KEY + "\",\n" +
+                "        \"short_id\": [\"16\", \"a1b2c3d4\"]\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }],\n" +
+                "  \"outbounds\": [{\"type\": \"direct\", \"tag\": \"direct\"}]\n" +
+                "}";
+        Files.write(Paths.get("config.json"), config.getBytes());
+        System.out.println("📝 config.json 已成功生成。");
     }
 }
