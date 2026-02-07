@@ -8,11 +8,13 @@ import java.time.Instant;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw + n8n] 正在配置 Kimi K2.5 环境 (结构修正版)...");
+        System.out.println("🦞 [OpenClaw + n8n] 正在配置 Kimi K2.5 环境 (对象结构修正版)...");
         
-        String kimiApiKey = "sk-R4TBmiwOQMBjiTSh91uhZEDmdtidgzu3jIXA0aqQhQaU2WIL"; 
+        // ================= 配置区 =================
+        String kimiApiKey = "sk-0xhxDn6GU2BliEzpLuegxhYc9PL9apvHkEfa1ZEvrZrt43jo"; 
         String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
         String baseDir = "/home/container";
+        // =========================================
 
         try {
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -28,11 +30,11 @@ public class PaperBootstrap {
             if (openclawDir.exists()) deleteDirectory(openclawDir);
             new File(baseDir + "/.openclaw/workspace").mkdirs();
 
-            // 2. 写入修正后的 openclaw.json (解决 models 数组报错)
-            System.out.println("📝 写入修正后的配置文件...");
+            // 2. 写入 2.6.3 严格格式的 openclaw.json
+            System.out.println("📝 写入修正后的配置文件 (Object Mode)...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
-            // 核心修正：在 moonshot 节点下增加了 models 数组字段
+            // 关键修正：models 数组现在必须是对象列表 [{"id": "..."}]
             String config = "{\n" +
                 "  \"meta\": { \"lastTouchedVersion\": \"2026.2.3\", \"lastTouchedAt\": \"" + Instant.now().toString() + "\" },\n" +
                 "  \"models\": {\n" +
@@ -42,7 +44,10 @@ public class PaperBootstrap {
                 "        \"baseUrl\": \"https://api.moonshot.cn/v1\",\n" +
                 "        \"apiKey\": \"" + kimiApiKey + "\",\n" +
                 "        \"api\": \"openai-responses\",\n" +
-                "        \"models\": [\"kimi-k2.5\", \"moonshot-v1-8k\"] \n" + // <-- 修正：补全了报错缺失的 models 数组
+                "        \"models\": [\n" +
+                "          { \"id\": \"kimi-k2.5\" },\n" +
+                "          { \"id\": \"moonshot-v1-8k\" }\n" +
+                "        ]\n" +
                 "      }\n" +
                 "    }\n" +
                 "  },\n" +
@@ -67,7 +72,7 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), config.getBytes());
 
-            // 3. 启动 n8n (你的原始代码)
+            // 3. 启动 n8n (完全保留原始逻辑)
             System.out.println("🚀 启动 n8n...");
             ProcessBuilder n8nPb = new ProcessBuilder(
                 nodeBin, "--max-old-space-size=2048",
@@ -82,7 +87,7 @@ public class PaperBootstrap {
             
             Thread.sleep(5000);
 
-            // 4. 直接启动 Gateway (跳过 onboard 以免参数错误)
+            // 4. 启动 OpenClaw Gateway
             System.out.println("🚀 启动 OpenClaw Gateway...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway", "--port", "18789", "--token", "admin123", "--verbose"
