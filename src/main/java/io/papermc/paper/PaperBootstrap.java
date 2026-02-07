@@ -13,22 +13,48 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-Smr4THSBZfy8J4FEmIoLnTtfHovPx8BUzOGct1g2pRRxkY3Z";  // ← 换成你的真实 API Key
+            String kimiApiKey = "sk-cpb8RW585yKcZbD9aNvtPnDh1VgAjRKysgolkMOsClspKiVe";  // ← 换成真实的
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
             env.put("HOME", baseDir);
             env.put("MOONSHOT_API_KEY", kimiApiKey);
+            env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
 
-            // 0. 删除 Webhook
+            // 0. 安装 Playwright Chromium（如果没有）
+            File chromiumDir = new File(baseDir + "/.playwright");
+            if (!chromiumDir.exists()) {
+                System.out.println("🌐 正在安装 Chromium 浏览器...");
+                System.out.println("   （首次安装需要 3-5 分钟，请耐心等待）");
+                
+                ProcessBuilder installPb = new ProcessBuilder(
+                    nodeBin, 
+                    baseDir + "/node_modules/.bin/npx", 
+                    "playwright", "install", "chromium"
+                );
+                installPb.environment().putAll(env);
+                installPb.directory(new File(baseDir));
+                installPb.inheritIO();
+                int exitCode = installPb.start().waitFor();
+                
+                if (exitCode == 0) {
+                    System.out.println("✅ Chromium 安装完成");
+                } else {
+                    System.out.println("⚠️ Chromium 安装失败，浏览器功能可能不可用");
+                }
+            } else {
+                System.out.println("✅ Chromium 已存在");
+            }
+
+            // 1. 删除 Webhook
             System.out.println("🗑️ 删除 Telegram Webhook...");
             URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.getResponseCode();
 
-            // 1. 删除旧配置
+            // 2. 删除旧配置
             System.out.println("🧹 删除旧配置...");
             File openclawDir = new File(baseDir + "/.openclaw");
             if (openclawDir.exists()) {
@@ -37,8 +63,8 @@ public class PaperBootstrap {
             openclawDir.mkdirs();
             Thread.sleep(1000);
 
-            // 2. 写入配置 - 移除 api 字段，让 OpenClaw 自动检测
-            System.out.println("📝 写入 Kimi K2.5 配置...");
+            // 3. 写入配置
+            System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
             String config = "{\n" +
@@ -65,6 +91,11 @@ public class PaperBootstrap {
                 "      },\n" +
                 "      \"workspace\": \"/home/container/.openclaw/workspace\"\n" +
                 "    }\n" +
+                "  },\n" +
+                "  \"browser\": {\n" +
+                "    \"enabled\": true,\n" +
+                "    \"mode\": \"local\",\n" +
+                "    \"headless\": true\n" +
                 "  },\n" +
                 "  \"channels\": {\n" +
                 "    \"telegram\": {\n" +
@@ -96,12 +127,13 @@ public class PaperBootstrap {
             Files.write(configFile.toPath(), config.getBytes());
             System.out.println("✅ 配置已写入");
 
-            // 3. 创建 workspace 目录
+            // 4. 创建 workspace 目录
             new File(baseDir + "/.openclaw/workspace").mkdirs();
 
             System.out.println("\n📋 模型: moonshot/kimi-k2.5");
+            System.out.println("📋 浏览器: Chromium (本地模式)");
 
-            // 4. 启动 n8n
+            // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
             File n8nDir = new File(baseDir + "/.n8n");
             if (!n8nDir.exists()) n8nDir.mkdirs();
@@ -125,7 +157,7 @@ public class PaperBootstrap {
             n8nPb.start();
             Thread.sleep(8000);
 
-            // 5. 启动 Gateway
+            // 6. 启动 Gateway
             System.out.println("\n🚀 启动 Gateway...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
