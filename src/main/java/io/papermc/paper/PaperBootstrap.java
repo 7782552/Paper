@@ -13,8 +13,9 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-uHMZ8M1U4EHAWnLyAXElJxtiBRpeabtwTuopwx6X4xRhCUdX";  // ← 换成真实的
+            String kimiApiKey = "sk-u2C9BQHshXEhmEttmHxLpTJDkiApbSDvQFwRkM3RX3LjxGXW";  // ← 换成真实的
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
+            String gatewayToken = "admin123";
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
@@ -22,6 +23,7 @@ public class PaperBootstrap {
             env.put("MOONSHOT_API_KEY", kimiApiKey);
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
+            env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
 
             // 0. 删除 Webhook
             System.out.println("🗑️ 删除 Telegram Webhook...");
@@ -83,7 +85,11 @@ public class PaperBootstrap {
                 "  \"gateway\": {\n" +
                 "    \"port\": 18789,\n" +
                 "    \"mode\": \"local\",\n" +
-                "    \"bind\": \"lan\"\n" +
+                "    \"bind\": \"lan\",\n" +
+                "    \"auth\": {\n" +
+                "      \"mode\": \"token\",\n" +
+                "      \"token\": \"" + gatewayToken + "\"\n" +
+                "    }\n" +
                 "  },\n" +
                 "  \"plugins\": {\n" +
                 "    \"entries\": {\n" +
@@ -105,7 +111,6 @@ public class PaperBootstrap {
                 "const proxy = httpProxy.createProxyServer({ ws: true });\n" +
                 "\n" +
                 "proxy.on('error', (err, req, res) => {\n" +
-                "  console.error('Proxy error:', err.message);\n" +
                 "  if (res && res.writeHead) {\n" +
                 "    res.writeHead(502);\n" +
                 "    res.end('Service starting...');\n" +
@@ -142,6 +147,7 @@ public class PaperBootstrap {
 
             System.out.println("\n📋 模型: moonshot/kimi-k2.5");
             System.out.println("📋 浏览器: Chromium ✅");
+            System.out.println("📋 Token: " + gatewayToken);
 
             // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
@@ -167,6 +173,7 @@ public class PaperBootstrap {
                 nodeBin, ocBin, "gateway",
                 "--port", "18789",
                 "--bind", "lan",
+                "--token", gatewayToken,
                 "--verbose"
             );
             gatewayPb.environment().putAll(env);
@@ -176,7 +183,7 @@ public class PaperBootstrap {
 
             // 等待服务启动
             System.out.println("\n⏳ 等待服务启动...");
-            Thread.sleep(10000);
+            Thread.sleep(12000);
 
             // 7. 启动反向代理
             System.out.println("\n🚀 启动反向代理...");
