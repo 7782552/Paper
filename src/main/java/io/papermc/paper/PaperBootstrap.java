@@ -4,46 +4,29 @@ import java.io.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🧹 清理并安装 Chromium...");
+        System.out.println("📥 安装 Chromium（使用自定义临时目录）...");
         try {
             String baseDir = "/home/container";
             String npxBin = baseDir + "/node-v22/bin/npx";
+            String tempDir = baseDir + "/tmp";
             
-            // 1. 删除 Docker 相关文件（不需要了）
-            System.out.println("🗑️ 清理不需要的文件...");
-            String[] toDelete = {
-                baseDir + "/docker",
-                baseDir + "/docker-rootless-extras",
-                baseDir + "/docker.tgz",
-                baseDir + "/docker-rootless.tgz",
-                baseDir + "/uidmap.apk",
-                baseDir + "/get-docker-rootless.sh",
-                baseDir + "/run",
-                baseDir + "/.docker",
-                baseDir + "/.playwright",
-                baseDir + "/.cache"
-            };
+            // 1. 创建临时目录
+            new File(tempDir).mkdirs();
             
-            for (String path : toDelete) {
-                ProcessBuilder rmPb = new ProcessBuilder("rm", "-rf", path);
-                rmPb.start().waitFor();
-            }
-            System.out.println("✅ 清理完成");
-            
-            // 2. 检查空间
-            System.out.println("\n📋 清理后空间:");
-            ProcessBuilder duPb = new ProcessBuilder("du", "-sh", baseDir);
-            duPb.inheritIO();
-            duPb.start().waitFor();
-            
-            // 3. 设置环境变量
+            // 2. 设置环境变量
             java.util.Map<String, String> env = new java.util.HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
+            env.put("TMPDIR", tempDir);
+            env.put("TEMP", tempDir);
+            env.put("TMP", tempDir);
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             
-            // 4. 安装 Chromium
-            System.out.println("\n📥 安装 Chromium...");
+            // 3. 安装 Chromium
+            System.out.println("📥 安装 Chromium...");
+            System.out.println("   临时目录: " + tempDir);
+            System.out.println("   （需要 3-5 分钟，请耐心等待）");
+            
             ProcessBuilder installPb = new ProcessBuilder(
                 npxBin, "playwright", "install", "chromium"
             );
@@ -54,6 +37,10 @@ public class PaperBootstrap {
             
             if (result == 0) {
                 System.out.println("✅ Chromium 安装成功！");
+                
+                // 清理临时目录
+                ProcessBuilder rmPb = new ProcessBuilder("rm", "-rf", tempDir);
+                rmPb.start().waitFor();
             } else {
                 System.out.println("❌ 安装失败");
             }
