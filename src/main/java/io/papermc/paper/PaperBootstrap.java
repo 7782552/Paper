@@ -11,9 +11,10 @@ public class PaperBootstrap {
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
+            String npxBin = baseDir + "/node-v22/bin/npx";  // 修正路径
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-cpb8RW585yKcZbD9aNvtPnDh1VgAjRKysgolkMOsClspKiVe";  // ← 换成真实的
+            String kimiApiKey = "sk-Bps7XiyOhv6tH9GNl2bF6uxSnQNKpIMbqweIpDP62XGKcqZ0";  // ← 换成真实的
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
@@ -29,9 +30,7 @@ public class PaperBootstrap {
                 System.out.println("   （首次安装需要 3-5 分钟，请耐心等待）");
                 
                 ProcessBuilder installPb = new ProcessBuilder(
-                    nodeBin, 
-                    baseDir + "/node_modules/.bin/npx", 
-                    "playwright", "install", "chromium"
+                    npxBin, "playwright", "install", "chromium"
                 );
                 installPb.environment().putAll(env);
                 installPb.directory(new File(baseDir));
@@ -63,7 +62,7 @@ public class PaperBootstrap {
             openclawDir.mkdirs();
             Thread.sleep(1000);
 
-            // 3. 写入配置
+            // 3. 写入配置（移除无效的 browser.mode）
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
@@ -94,7 +93,6 @@ public class PaperBootstrap {
                 "  },\n" +
                 "  \"browser\": {\n" +
                 "    \"enabled\": true,\n" +
-                "    \"mode\": \"local\",\n" +
                 "    \"headless\": true\n" +
                 "  },\n" +
                 "  \"channels\": {\n" +
@@ -131,7 +129,7 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
 
             System.out.println("\n📋 模型: moonshot/kimi-k2.5");
-            System.out.println("📋 浏览器: Chromium (本地模式)");
+            System.out.println("📋 浏览器: Chromium");
 
             // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
