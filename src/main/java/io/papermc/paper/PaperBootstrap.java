@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-IMa5cH106EGLAGxzqHaCUzzX0ibE9zHYd7WugavVbqYXoxj4";  // ← 换成你的真实 API Key
+            String kimiApiKey = "sk-Smr4THSBZfy8J4FEmIoLnTtfHovPx8BUzOGct1g2pRRxkY3Z";  // ← 换成你的真实 API Key
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
@@ -37,7 +37,7 @@ public class PaperBootstrap {
             openclawDir.mkdirs();
             Thread.sleep(1000);
 
-            // 2. 写入配置
+            // 2. 写入配置 - 移除 api 字段，让 OpenClaw 自动检测
             System.out.println("📝 写入 Kimi K2.5 配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
@@ -52,10 +52,8 @@ public class PaperBootstrap {
                 "      \"moonshot\": {\n" +
                 "        \"baseUrl\": \"https://api.moonshot.cn/v1\",\n" +
                 "        \"apiKey\": \"" + kimiApiKey + "\",\n" +
-                "        \"api\": \"openai\",\n" +
                 "        \"models\": [\n" +
-                "          { \"id\": \"kimi-k2.5\", \"name\": \"Kimi K2.5\" },\n" +
-                "          { \"id\": \"moonshot-v1-8k\", \"name\": \"Moonshot V1 8K\" }\n" +
+                "          { \"id\": \"kimi-k2.5\", \"name\": \"Kimi K2.5\" }\n" +
                 "        ]\n" +
                 "      }\n" +
                 "    }\n" +
@@ -65,22 +63,8 @@ public class PaperBootstrap {
                 "      \"model\": {\n" +
                 "        \"primary\": \"moonshot/kimi-k2.5\"\n" +
                 "      },\n" +
-                "      \"workspace\": \"/home/container/.openclaw/workspace\",\n" +
-                "      \"compaction\": {\n" +
-                "        \"mode\": \"safeguard\"\n" +
-                "      },\n" +
-                "      \"maxConcurrent\": 4,\n" +
-                "      \"subagents\": {\n" +
-                "        \"maxConcurrent\": 8\n" +
-                "      }\n" +
+                "      \"workspace\": \"/home/container/.openclaw/workspace\"\n" +
                 "    }\n" +
-                "  },\n" +
-                "  \"messages\": {\n" +
-                "    \"ackReactionScope\": \"group-mentions\"\n" +
-                "  },\n" +
-                "  \"commands\": {\n" +
-                "    \"native\": \"auto\",\n" +
-                "    \"nativeSkills\": \"auto\"\n" +
                 "  },\n" +
                 "  \"channels\": {\n" +
                 "    \"telegram\": {\n" +
@@ -98,10 +82,6 @@ public class PaperBootstrap {
                 "    \"auth\": {\n" +
                 "      \"mode\": \"token\",\n" +
                 "      \"token\": \"admin123\"\n" +
-                "    },\n" +
-                "    \"tailscale\": {\n" +
-                "      \"mode\": \"off\",\n" +
-                "      \"resetOnExit\": false\n" +
                 "    }\n" +
                 "  },\n" +
                 "  \"plugins\": {\n" +
@@ -119,12 +99,9 @@ public class PaperBootstrap {
             // 3. 创建 workspace 目录
             new File(baseDir + "/.openclaw/workspace").mkdirs();
 
-            // 4. 显示配置信息
-            System.out.println("\n📋 配置信息:");
-            System.out.println("   模型: moonshot/kimi-k2.5");
-            System.out.println("   API: https://api.moonshot.cn/v1");
+            System.out.println("\n📋 模型: moonshot/kimi-k2.5");
 
-            // 5. 启动 n8n
+            // 4. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
             File n8nDir = new File(baseDir + "/.n8n");
             if (!n8nDir.exists()) n8nDir.mkdirs();
@@ -148,7 +125,7 @@ public class PaperBootstrap {
             n8nPb.start();
             Thread.sleep(8000);
 
-            // 6. 启动 Gateway
+            // 5. 启动 Gateway
             System.out.println("\n🚀 启动 Gateway...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
