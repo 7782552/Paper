@@ -4,61 +4,61 @@ import java.io.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🐳 尝试启动 Docker daemon...");
+        System.out.println("🐳 尝试 Rootless Docker...");
         try {
             String baseDir = "/home/container";
-            String dockerBin = baseDir + "/docker/dockerd";
             
-            // 检查 dockerd 是否存在
-            File dockerd = new File(dockerBin);
-            if (!dockerd.exists()) {
-                System.out.println("❌ dockerd 不存在");
-                System.out.println("📋 检查 docker 目录内容...");
-                ProcessBuilder lsPb = new ProcessBuilder("ls", "-la", baseDir + "/docker/");
-                lsPb.inheritIO();
-                lsPb.start().waitFor();
-                return;
-            }
-            
-            System.out.println("✅ dockerd 存在，尝试启动...");
-            
-            // 尝试启动 dockerd（后台运行）
-            ProcessBuilder daemonPb = new ProcessBuilder(
-                dockerBin,
-                "--data-root", baseDir + "/docker-data",
-                "--host", "unix://" + baseDir + "/docker.sock"
+            // 1. 下载 rootless docker
+            System.out.println("📥 下载 Rootless Docker...");
+            ProcessBuilder dlPb = new ProcessBuilder(
+                "curl", "-fsSL",
+                "https://get.docker.com/rootless",
+                "-o", baseDir + "/get-docker-rootless.sh"
             );
-            daemonPb.inheritIO();
-            daemonPb.directory(new File(baseDir));
+            dlPb.inheritIO();
+            dlPb.directory(new File(baseDir));
+            dlPb.start().waitFor();
             
-            Process daemon = daemonPb.start();
+            // 2. 查看脚本内容（不执行）
+            System.out.println("\n📋 检查系统要求...");
             
-            // 等待几秒看是否启动
-            Thread.sleep(5000);
+            // 检查 newuidmap
+            ProcessBuilder checkPb = new ProcessBuilder("which", "newuidmap");
+            checkPb.inheritIO();
+            int result = -1;
+            try {
+                result = checkPb.start().waitFor();
+            } catch (Exception e) {}
             
-            if (daemon.isAlive()) {
-                System.out.println("✅ Docker daemon 正在运行！");
-                
-                // 测试连接
-                System.out.println("\n🧪 测试 Docker 连接...");
-                ProcessBuilder testPb = new ProcessBuilder(
-                    baseDir + "/docker/docker",
-                    "-H", "unix://" + baseDir + "/docker.sock",
-                    "info"
-                );
-                testPb.inheritIO();
-                testPb.start().waitFor();
-                
-                // 保持运行
-                System.out.println("\n✅ Docker 可用！按 Ctrl+C 停止");
-                daemon.waitFor();
+            if (result != 0) {
+                System.out.println("❌ newuidmap 不存在（rootless docker 需要）");
             } else {
-                System.out.println("❌ Docker daemon 启动失败");
-                System.out.println("退出码: " + daemon.exitValue());
+                System.out.println("✅ newuidmap 存在");
             }
+            
+            // 检查 /etc/subuid
+            System.out.println("\n📋 检查 /etc/subuid...");
+            ProcessBuilder subuidPb = new ProcessBuilder("cat", "/etc/subuid");
+            subuidPb.inheritIO();
+            try {
+                subuidPb.start().waitFor();
+            } catch (Exception e) {
+                System.out.println("❌ /etc/subuid 不存在");
+            }
+            
+            // 检查内核参数
+            System.out.println("\n📋 检查 user namespaces...");
+            ProcessBuilder nsPb = new ProcessBuilder("cat", "/proc/sys/kernel/unprivileged_userns_clone");
+            nsPb.inheritIO();
+            try {
+                nsPb.start().waitFor();
+            } catch (Exception e) {
+                System.out.println("❌ 无法读取（可能被禁用）");
+            }
+            
+            System.out.println("\n✅ 检测完成");
             
         } catch (Exception e) {
-            System.out.println("❌ 错误: " + e.getMessage());
             e.printStackTrace();
         }
     }
