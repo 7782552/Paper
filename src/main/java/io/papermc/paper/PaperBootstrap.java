@@ -86,12 +86,11 @@ public class PaperBootstrap {
                 "    \"port\": 18789,\n" +
                 "    \"mode\": \"local\",\n" +
                 "    \"bind\": \"lan\",\n" +
+                "    \"publicUrl\": \"https://5.5ccc.cc.cd\",\n" +
+                "    \"trustedProxies\": [\"127.0.0.1\", \"::1\", \"173.245.48.0/20\", \"103.21.244.0/22\", \"103.22.200.0/22\", \"103.31.4.0/22\", \"141.101.64.0/18\", \"108.162.192.0/18\", \"190.93.240.0/20\", \"188.114.96.0/20\", \"197.234.240.0/22\", \"198.41.128.0/17\", \"162.158.0.0/15\", \"104.16.0.0/13\", \"104.24.0.0/14\", \"172.64.0.0/13\", \"131.0.72.0/22\"],\n" +
                 "    \"auth\": {\n" +
                 "      \"mode\": \"token\",\n" +
                 "      \"token\": \"" + gatewayToken + "\"\n" +
-                "    },\n" +
-                "    \"controlUi\": {\n" +
-                "      \"allowInsecureAuth\": true\n" +
                 "    }\n" +
                 "  },\n" +
                 "  \"plugins\": {\n" +
@@ -105,13 +104,13 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), config.getBytes());
 
-            // 3. 创建反向代理（n8n 在根路径，claw 在子路径）
+            // 3. 创建反向代理
             System.out.println("📝 创建反向代理...");
             String proxyScript = 
                 "const http = require('http');\n" +
                 "const httpProxy = require('http-proxy');\n" +
                 "\n" +
-                "const proxy = httpProxy.createProxyServer({ ws: true });\n" +
+                "const proxy = httpProxy.createProxyServer({ ws: true, xfwd: true });\n" +
                 "\n" +
                 "proxy.on('error', (err, req, res) => {\n" +
                 "  console.error('Proxy:', err.message);\n" +
@@ -122,29 +121,27 @@ public class PaperBootstrap {
                 "});\n" +
                 "\n" +
                 "const server = http.createServer((req, res) => {\n" +
-                "  // /claw 开头转发到 OpenClaw\n" +
-                "  if (req.url.startsWith('/claw')) {\n" +
-                "    req.url = req.url.slice(5) || '/';\n" +
-                "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
-                "  } else {\n" +
-                "    // 其他都给 n8n\n" +
+                "  if (req.url.startsWith('/n8n')) {\n" +
+                "    req.url = req.url.slice(4) || '/';\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
+                "  } else {\n" +
+                "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
                 "server.on('upgrade', (req, socket, head) => {\n" +
-                "  if (req.url.startsWith('/claw')) {\n" +
-                "    req.url = req.url.slice(5) || '/';\n" +
-                "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:18789' });\n" +
-                "  } else {\n" +
+                "  if (req.url.startsWith('/n8n')) {\n" +
+                "    req.url = req.url.slice(4) || '/';\n" +
                 "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:5678' });\n" +
+                "  } else {\n" +
+                "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:18789' });\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
                 "server.listen(30196, '0.0.0.0', () => {\n" +
                 "  console.log('🔀 代理运行在 :30196');\n" +
-                "  console.log('   http://node.zenix.sg:30196/      -> n8n');\n" +
-                "  console.log('   http://node.zenix.sg:30196/claw/ -> OpenClaw');\n" +
+                "  console.log('   https://5.5ccc.cc.cd/     -> OpenClaw');\n" +
+                "  console.log('   https://5.5ccc.cc.cd/n8n/ -> n8n');\n" +
                 "});\n";
             
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxyScript.getBytes());
@@ -155,8 +152,10 @@ public class PaperBootstrap {
 
             System.out.println("\n📋 模型: moonshot/kimi-k2.5");
             System.out.println("📋 浏览器: Chromium ✅");
+            System.out.println("📋 OpenClaw: https://5.5ccc.cc.cd/");
+            System.out.println("📋 n8n: https://5.5ccc.cc.cd/n8n/");
 
-            // 5. 启动 n8n（根路径，无需特殊配置）
+            // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
             ProcessBuilder n8nPb = new ProcessBuilder(
                 nodeBin, "--max-old-space-size=2048",
