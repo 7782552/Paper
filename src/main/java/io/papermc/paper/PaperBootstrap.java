@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String geminiApiKey = "AIzaSyCpolv3ZpSbdc9cTHlCqbURbdDhppxQ_90";
+            String geminiApiKey = "AIzaSyB_cCHb6nSws8C3UWaPI3Mg6M503kggX7Q";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
@@ -28,50 +28,60 @@ public class PaperBootstrap {
             conn.setRequestMethod("GET");
             conn.getResponseCode();
 
-            // 1. 检查是否需要初始化
-            File configFile = new File(baseDir + "/.openclaw/openclaw.json");
-            
-            if (!configFile.exists()) {
-                System.out.println("📝 首次运行 onboard...");
-                ProcessBuilder onboardPb = new ProcessBuilder(
-                    nodeBin, ocBin, "onboard",
-                    "--non-interactive",
-                    "--accept-risk",
-                    "--mode", "local",
-                    "--auth-choice", "gemini-api-key",
-                    "--gemini-api-key", geminiApiKey,
-                    "--gateway-port", "18789",
-                    "--gateway-bind", "lan",
-                    "--gateway-auth", "token",
-                    "--gateway-token", "admin123",
-                    "--skip-daemon",
-                    "--skip-channels",
-                    "--skip-skills",
-                    "--skip-health",
-                    "--skip-ui"
-                );
-                onboardPb.environment().putAll(env);
-                onboardPb.directory(new File(baseDir));
-                onboardPb.inheritIO();
-                onboardPb.start().waitFor();
-                Thread.sleep(2000);
+            // 1. 【关键】删除旧的错误配置
+            System.out.println("🧹 删除旧配置...");
+            File openclawDir = new File(baseDir + "/.openclaw");
+            if (openclawDir.exists()) {
+                deleteDirectory(openclawDir);
+                System.out.println("   ✅ 已删除 .openclaw 目录");
             }
+            Thread.sleep(1000);
 
-            // 2. 使用 CLI 设置配置
-            System.out.println("📝 配置 Telegram Bot Token...");
+            // 2. 重新运行 onboard
+            System.out.println("📝 运行 onboard...");
+            ProcessBuilder onboardPb = new ProcessBuilder(
+                nodeBin, ocBin, "onboard",
+                "--non-interactive",
+                "--accept-risk",
+                "--mode", "local",
+                "--auth-choice", "gemini-api-key",
+                "--gemini-api-key", geminiApiKey,
+                "--gateway-port", "18789",
+                "--gateway-bind", "lan",
+                "--gateway-auth", "token",
+                "--gateway-token", "admin123",
+                "--skip-daemon",
+                "--skip-channels",
+                "--skip-skills",
+                "--skip-health",
+                "--skip-ui"
+            );
+            onboardPb.environment().putAll(env);
+            onboardPb.directory(new File(baseDir));
+            onboardPb.inheritIO();
+            onboardPb.start().waitFor();
+            Thread.sleep(2000);
+
+            // 3. 用 CLI 设置配置
+            System.out.println("📝 配置 Telegram...");
             runCommand(env, baseDir, nodeBin, ocBin, "config", "set", 
                 "channels.telegram.botToken", telegramToken);
             
-            System.out.println("📝 配置 dmPolicy...");
             runCommand(env, baseDir, nodeBin, ocBin, "config", "set", 
                 "channels.telegram.dmPolicy", "open");
             
-            System.out.println("📝 配置模型...");
             runCommand(env, baseDir, nodeBin, ocBin, "config", "set", 
                 "agents.defaults.model.primary", "google/gemini-2.0-flash");
 
-            // 3. 启动 n8n
-            System.out.println("🚀 启动 n8n...");
+            // 4. 显示配置
+            System.out.println("\n📋 当前配置:");
+            File configFile = new File(baseDir + "/.openclaw/openclaw.json");
+            if (configFile.exists()) {
+                System.out.println(new String(Files.readAllBytes(configFile.toPath())));
+            }
+
+            // 5. 启动 n8n
+            System.out.println("\n🚀 启动 n8n...");
             File n8nDir = new File(baseDir + "/.n8n");
             if (!n8nDir.exists()) n8nDir.mkdirs();
 
@@ -94,8 +104,8 @@ public class PaperBootstrap {
             n8nPb.start();
             Thread.sleep(8000);
 
-            // 4. 启动 Gateway
-            System.out.println("🚀 启动 Gateway...");
+            // 6. 启动 Gateway
+            System.out.println("\n🚀 启动 Gateway...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
                 "--port", "18789",
@@ -119,5 +129,19 @@ public class PaperBootstrap {
         pb.directory(new File(workDir));
         pb.inheritIO();
         pb.start().waitFor();
+    }
+
+    static void deleteDirectory(File dir) {
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    deleteDirectory(file);
+                } else {
+                    file.delete();
+                }
+            }
+        }
+        dir.delete();
     }
 }
