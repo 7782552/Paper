@@ -7,13 +7,13 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 正在配置 Kimi K2.5...");
+        System.out.println("🦞 [OpenClaw 2.6.3+] 正在配置 Kimi K2.5...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-qZlTJQzPtmeu9Ib9Ay6bGpXv4ePqXMqTi7YwqGjYhce9eEr6";  // ← 把这里换成你的 Kimi API Key
+            String kimiApiKey = "sk-ZWAKsiAR3tfSto9gFR5duzNaqjRFkSKzx9Uh6BhYzSbZ57dU";  // ← 换成你的 Kimi API Key
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
@@ -34,54 +34,29 @@ public class PaperBootstrap {
             if (openclawDir.exists()) {
                 deleteDirectory(openclawDir);
             }
+            openclawDir.mkdirs();
             Thread.sleep(1000);
 
-            // 2. 运行 onboard
-            System.out.println("📝 运行 onboard (Kimi K2.5)...");
-            ProcessBuilder onboardPb = new ProcessBuilder(
-                nodeBin, ocBin, "onboard",
-                "--non-interactive",
-                "--accept-risk",
-                "--mode", "local",
-                "--auth-choice", "moonshot-api-key-cn",
-                "--moonshot-api-key", kimiApiKey,
-                "--gateway-port", "18789",
-                "--gateway-bind", "lan",
-                "--gateway-auth", "token",
-                "--gateway-token", "admin123",
-                "--skip-daemon",
-                "--skip-channels",
-                "--skip-skills",
-                "--skip-health",
-                "--skip-ui"
-            );
-            onboardPb.environment().putAll(env);
-            onboardPb.directory(new File(baseDir));
-            onboardPb.inheritIO();
-            onboardPb.start().waitFor();
-            Thread.sleep(2000);
-
-            // 3. 写入配置
-            System.out.println("📝 写入 Kimi K2.5 配置...");
+            // 2. 写入正确的 OpenClaw 2.6.3+ 配置
+            System.out.println("📝 写入 Kimi K2.5 配置 (OpenClaw 2.6.3+ 格式)...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
             String config = "{\n" +
                 "  \"meta\": {\n" +
-                "    \"lastTouchedVersion\": \"2026.2.3-1\",\n" +
+                "    \"lastTouchedVersion\": \"2026.2.6.3\",\n" +
                 "    \"lastTouchedAt\": \"" + java.time.Instant.now().toString() + "\"\n" +
                 "  },\n" +
-                "  \"wizard\": {\n" +
-                "    \"lastRunAt\": \"" + java.time.Instant.now().toString() + "\",\n" +
-                "    \"lastRunVersion\": \"2026.2.3-1\",\n" +
-                "    \"lastRunCommand\": \"onboard\",\n" +
-                "    \"lastRunMode\": \"local\"\n" +
-                "  },\n" +
-                "  \"auth\": {\n" +
-                "    \"profiles\": {\n" +
-                "      \"moonshot:default\": {\n" +
-                "        \"provider\": \"moonshot\",\n" +
-                "        \"mode\": \"api_key\",\n" +
-                "        \"region\": \"cn\"\n" +
+                "  \"models\": {\n" +
+                "    \"mode\": \"merge\",\n" +
+                "    \"providers\": {\n" +
+                "      \"moonshot\": {\n" +
+                "        \"baseUrl\": \"https://api.moonshot.cn/v1\",\n" +
+                "        \"apiKey\": \"" + kimiApiKey + "\",\n" +
+                "        \"api\": \"openai-responses\",\n" +
+                "        \"models\": [\n" +
+                "          { \"id\": \"kimi-k2.5\" },\n" +
+                "          { \"id\": \"moonshot-v1-8k\" }\n" +
+                "        ]\n" +
                 "      }\n" +
                 "    }\n" +
                 "  },\n" +
@@ -141,8 +116,14 @@ public class PaperBootstrap {
             Files.write(configFile.toPath(), config.getBytes());
             System.out.println("✅ Kimi K2.5 配置已写入");
 
-            // 4. 显示配置
-            System.out.println("\n📋 模型: moonshot/kimi-k2.5");
+            // 3. 创建 workspace 目录
+            new File(baseDir + "/.openclaw/workspace").mkdirs();
+
+            // 4. 显示配置信息
+            System.out.println("\n📋 配置信息:");
+            System.out.println("   模型: moonshot/kimi-k2.5");
+            System.out.println("   API: https://api.moonshot.cn/v1");
+            System.out.println("   协议: openai-responses");
 
             // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
