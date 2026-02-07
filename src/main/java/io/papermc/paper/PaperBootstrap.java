@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-ZWAKsiAR3tfSto9gFR5duzNaqjRFkSKzx9Uh6BhYzSbZ57dU";  // ← 换成你的 Kimi API Key
+            String kimiApiKey = "sk-F4FgI8D9R5RpCVd3AnbULUUat3sZefrm9Fx1NDYRC5r5U9AQ";  // ← 换成你的 Kimi API Key
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
@@ -37,8 +37,8 @@ public class PaperBootstrap {
             openclawDir.mkdirs();
             Thread.sleep(1000);
 
-            // 2. 写入正确的 OpenClaw 2.6.3+ 配置
-            System.out.println("📝 写入 Kimi K2.5 配置 (OpenClaw 2.6.3+ 格式)...");
+            // 2. 写入正确的配置
+            System.out.println("📝 写入 Kimi K2.5 配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
             String config = "{\n" +
@@ -54,8 +54,8 @@ public class PaperBootstrap {
                 "        \"apiKey\": \"" + kimiApiKey + "\",\n" +
                 "        \"api\": \"openai-responses\",\n" +
                 "        \"models\": [\n" +
-                "          { \"id\": \"kimi-k2.5\" },\n" +
-                "          { \"id\": \"moonshot-v1-8k\" }\n" +
+                "          { \"id\": \"kimi-k2.5\", \"name\": \"Kimi K2.5\" },\n" +
+                "          { \"id\": \"moonshot-v1-8k\", \"name\": \"Moonshot V1 8K\" }\n" +
                 "        ]\n" +
                 "      }\n" +
                 "    }\n" +
@@ -123,7 +123,6 @@ public class PaperBootstrap {
             System.out.println("\n📋 配置信息:");
             System.out.println("   模型: moonshot/kimi-k2.5");
             System.out.println("   API: https://api.moonshot.cn/v1");
-            System.out.println("   协议: openai-responses");
 
             // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
