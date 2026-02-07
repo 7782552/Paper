@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-oSPkL7S7j9PoxU8vXsbSiHR8mlcWQSgA7RqC4v64kh8UpFA5";  // ← 换成真实的
+            String kimiApiKey = "sk-uHMZ8M1U4EHAWnLyAXElJxtiBRpeabtwTuopwx6X4xRhCUdX";  // ← 换成真实的
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
@@ -83,10 +83,7 @@ public class PaperBootstrap {
                 "  \"gateway\": {\n" +
                 "    \"port\": 18789,\n" +
                 "    \"mode\": \"local\",\n" +
-                "    \"bind\": \"lan\",\n" +
-                "    \"auth\": {\n" +
-                "      \"mode\": \"none\"\n" +
-                "    }\n" +
+                "    \"bind\": \"lan\"\n" +
                 "  },\n" +
                 "  \"plugins\": {\n" +
                 "    \"entries\": {\n" +
@@ -116,12 +113,10 @@ public class PaperBootstrap {
                 "});\n" +
                 "\n" +
                 "const server = http.createServer((req, res) => {\n" +
-                "  // n8n 路径\n" +
                 "  if (req.url.startsWith('/n8n')) {\n" +
                 "    req.url = req.url.slice(4) || '/';\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
                 "  } else {\n" +
-                "    // OpenClaw\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
                 "  }\n" +
                 "});\n" +
@@ -137,8 +132,6 @@ public class PaperBootstrap {
                 "\n" +
                 "server.listen(30196, '0.0.0.0', () => {\n" +
                 "  console.log('🔀 代理运行在 :30196');\n" +
-                "  console.log('   http://node.zenix.sg:30196/     -> OpenClaw');\n" +
-                "  console.log('   http://node.zenix.sg:30196/n8n/ -> n8n');\n" +
                 "});\n";
             
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxyScript.getBytes());
@@ -161,7 +154,6 @@ public class PaperBootstrap {
             n8nPb.environment().put("N8N_HOST", "127.0.0.1");
             n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
             n8nPb.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
-            n8nPb.environment().put("N8N_PATH_PREFIX", "/n8n");
             n8nPb.environment().put("N8N_DIAGNOSTICS_ENABLED", "false");
             n8nPb.environment().put("N8N_VERSION_NOTIFICATIONS_ENABLED", "false");
             n8nPb.environment().put("N8N_HIRING_BANNER_ENABLED", "false");
@@ -183,7 +175,8 @@ public class PaperBootstrap {
             gatewayPb.start();
 
             // 等待服务启动
-            Thread.sleep(8000);
+            System.out.println("\n⏳ 等待服务启动...");
+            Thread.sleep(10000);
 
             // 7. 启动反向代理
             System.out.println("\n🚀 启动反向代理...");
