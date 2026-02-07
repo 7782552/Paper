@@ -8,7 +8,7 @@ import java.nio.file.*;
 public class PaperBootstrap {
     
     // ========== 改这里 ==========
-    static String geminiApiKey = "AIzaSyANX78IcQRsfLtRpJWh-GlShMy2DkRRQiQ";  // 你的 Key
+    static String geminiApiKey = "AIzaSyA1JaNDulB79qXkXfVM2OADeioFQeP02MU";
     static String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
     static String model = "google/gemini-1.5-flash";
     // ============================
@@ -33,7 +33,7 @@ public class PaperBootstrap {
             conn.setRequestMethod("GET");
             conn.getResponseCode();
 
-            // 【强制删除旧配置】
+            // 删除旧配置
             System.out.println("🧹 删除旧配置...");
             File openclawDir = new File(baseDir + "/.openclaw");
             if (openclawDir.exists()) {
@@ -63,7 +63,7 @@ public class PaperBootstrap {
             onboardPb.start().waitFor();
             Thread.sleep(2000);
 
-            // 写入正确的配置
+            // 写入完整配置（包含 gateway.mode）
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             String config = createConfig(model, telegramToken);
@@ -100,7 +100,6 @@ public class PaperBootstrap {
             System.out.println("🎉 启动完成！");
             System.out.println("═".repeat(50));
             System.out.println("📌 模型: " + model);
-            System.out.println("🔑 API Key: " + geminiApiKey.substring(0, 15) + "...");
             System.out.println("🤖 Telegram Bot: @claw_test_008_bot");
             System.out.println("🌐 n8n: http://你的IP:30196");
             System.out.println("═".repeat(50));
@@ -123,12 +122,68 @@ public class PaperBootstrap {
     }
 
     static String createConfig(String modelName, String botToken) {
+        // 完整配置，包含所有必要字段
         return "{\n" +
-            "  \"auth\": { \"profiles\": { \"google:default\": { \"provider\": \"google\", \"mode\": \"api_key\" } } },\n" +
-            "  \"agents\": { \"defaults\": { \"model\": { \"primary\": \"" + modelName + "\" }, \"workspace\": \"/home/container/.openclaw/workspace\" } },\n" +
-            "  \"channels\": { \"telegram\": { \"dmPolicy\": \"open\", \"botToken\": \"" + botToken + "\", \"groupPolicy\": \"open\", \"streamMode\": \"partial\", \"allowFrom\": [\"*\"] } },\n" +
-            "  \"gateway\": { \"port\": 18789, \"bind\": \"lan\", \"auth\": { \"mode\": \"token\", \"token\": \"admin123\" } },\n" +
-            "  \"plugins\": { \"entries\": { \"telegram\": { \"enabled\": true } } }\n" +
+            "  \"meta\": {\n" +
+            "    \"lastTouchedVersion\": \"2026.2.3-1\",\n" +
+            "    \"lastTouchedAt\": \"" + java.time.Instant.now().toString() + "\"\n" +
+            "  },\n" +
+            "  \"wizard\": {\n" +
+            "    \"lastRunAt\": \"" + java.time.Instant.now().toString() + "\",\n" +
+            "    \"lastRunVersion\": \"2026.2.3-1\",\n" +
+            "    \"lastRunCommand\": \"onboard\",\n" +
+            "    \"lastRunMode\": \"local\"\n" +
+            "  },\n" +
+            "  \"auth\": {\n" +
+            "    \"profiles\": {\n" +
+            "      \"google:default\": {\n" +
+            "        \"provider\": \"google\",\n" +
+            "        \"mode\": \"api_key\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"agents\": {\n" +
+            "    \"defaults\": {\n" +
+            "      \"model\": {\n" +
+            "        \"primary\": \"" + modelName + "\"\n" +
+            "      },\n" +
+            "      \"workspace\": \"/home/container/.openclaw/workspace\",\n" +
+            "      \"compaction\": { \"mode\": \"safeguard\" },\n" +
+            "      \"maxConcurrent\": 4,\n" +
+            "      \"subagents\": { \"maxConcurrent\": 8 }\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"messages\": { \"ackReactionScope\": \"group-mentions\" },\n" +
+            "  \"commands\": { \"native\": \"auto\", \"nativeSkills\": \"auto\" },\n" +
+            "  \"channels\": {\n" +
+            "    \"telegram\": {\n" +
+            "      \"dmPolicy\": \"open\",\n" +
+            "      \"botToken\": \"" + botToken + "\",\n" +
+            "      \"groupPolicy\": \"open\",\n" +
+            "      \"streamMode\": \"partial\",\n" +
+            "      \"allowFrom\": [\"*\"]\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"gateway\": {\n" +
+            "    \"port\": 18789,\n" +
+            "    \"mode\": \"local\",\n" +
+            "    \"bind\": \"lan\",\n" +
+            "    \"auth\": {\n" +
+            "      \"mode\": \"token\",\n" +
+            "      \"token\": \"admin123\"\n" +
+            "    },\n" +
+            "    \"tailscale\": {\n" +
+            "      \"mode\": \"off\",\n" +
+            "      \"resetOnExit\": false\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"plugins\": {\n" +
+            "    \"entries\": {\n" +
+            "      \"telegram\": {\n" +
+            "        \"enabled\": true\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
             "}";
     }
 
