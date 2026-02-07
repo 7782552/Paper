@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-u2C9BQHshXEhmEttmHxLpTJDkiApbSDvQFwRkM3RX3LjxGXW";  // ← 换成真实的
+            String kimiApiKey = "sk-7wFMtcNvCXhEekOAcXM6wNQpaKXkdyGy7MjKMuQPqxTzgQmu";  // ← 换成真实的
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
@@ -40,7 +40,7 @@ public class PaperBootstrap {
             }
             openclawDir.mkdirs();
 
-            // 2. 写入配置
+            // 2. 写入配置（允许不安全的 HTTP）
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
@@ -89,6 +89,9 @@ public class PaperBootstrap {
                 "    \"auth\": {\n" +
                 "      \"mode\": \"token\",\n" +
                 "      \"token\": \"" + gatewayToken + "\"\n" +
+                "    },\n" +
+                "    \"controlUi\": {\n" +
+                "      \"allowInsecureAuth\": true\n" +
                 "    }\n" +
                 "  },\n" +
                 "  \"plugins\": {\n" +
@@ -102,7 +105,7 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), config.getBytes());
 
-            // 3. 创建反向代理
+            // 3. 创建反向代理（修复 n8n 路径）
             System.out.println("📝 创建反向代理...");
             String proxyScript = 
                 "const http = require('http');\n" +
@@ -118,8 +121,8 @@ public class PaperBootstrap {
                 "});\n" +
                 "\n" +
                 "const server = http.createServer((req, res) => {\n" +
-                "  if (req.url.startsWith('/n8n')) {\n" +
-                "    req.url = req.url.slice(4) || '/';\n" +
+                "  if (req.url === '/n8n' || req.url.startsWith('/n8n/')) {\n" +
+                "    req.url = req.url.replace(/^\\/n8n/, '') || '/';\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
                 "  } else {\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
@@ -127,8 +130,8 @@ public class PaperBootstrap {
                 "});\n" +
                 "\n" +
                 "server.on('upgrade', (req, socket, head) => {\n" +
-                "  if (req.url.startsWith('/n8n')) {\n" +
-                "    req.url = req.url.slice(4) || '/';\n" +
+                "  if (req.url === '/n8n' || req.url.startsWith('/n8n/')) {\n" +
+                "    req.url = req.url.replace(/^\\/n8n/, '') || '/';\n" +
                 "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:5678' });\n" +
                 "  } else {\n" +
                 "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:18789' });\n" +
@@ -157,7 +160,7 @@ public class PaperBootstrap {
             );
             n8nPb.environment().putAll(env);
             n8nPb.environment().put("N8N_PORT", "5678");
-            n8nPb.environment().put("N8N_HOST", "127.0.0.1");
+            n8nPb.environment().put("N8N_HOST", "0.0.0.0");
             n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
             n8nPb.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
             n8nPb.environment().put("N8N_DIAGNOSTICS_ENABLED", "false");
