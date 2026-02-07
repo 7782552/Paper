@@ -7,13 +7,13 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw 2.6.3+] 正在配置 Kimi K2.5...");
+        System.out.println("🦞 [OpenClaw] 正在配置 Kimi K2.5...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-F4FgI8D9R5RpCVd3AnbULUUat3sZefrm9Fx1NDYRC5r5U9AQ";  // ← 换成你的 Kimi API Key
+            String kimiApiKey = "sk-IMa5cH106EGLAGxzqHaCUzzX0ibE9zHYd7WugavVbqYXoxj4";  // ← 换成你的真实 API Key
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
@@ -37,13 +37,13 @@ public class PaperBootstrap {
             openclawDir.mkdirs();
             Thread.sleep(1000);
 
-            // 2. 写入正确的配置
+            // 2. 写入配置
             System.out.println("📝 写入 Kimi K2.5 配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
             String config = "{\n" +
                 "  \"meta\": {\n" +
-                "    \"lastTouchedVersion\": \"2026.2.6.3\",\n" +
+                "    \"lastTouchedVersion\": \"2026.2.3-1\",\n" +
                 "    \"lastTouchedAt\": \"" + java.time.Instant.now().toString() + "\"\n" +
                 "  },\n" +
                 "  \"models\": {\n" +
@@ -52,7 +52,7 @@ public class PaperBootstrap {
                 "      \"moonshot\": {\n" +
                 "        \"baseUrl\": \"https://api.moonshot.cn/v1\",\n" +
                 "        \"apiKey\": \"" + kimiApiKey + "\",\n" +
-                "        \"api\": \"openai-responses\",\n" +
+                "        \"api\": \"openai\",\n" +
                 "        \"models\": [\n" +
                 "          { \"id\": \"kimi-k2.5\", \"name\": \"Kimi K2.5\" },\n" +
                 "          { \"id\": \"moonshot-v1-8k\", \"name\": \"Moonshot V1 8K\" }\n" +
@@ -114,7 +114,7 @@ public class PaperBootstrap {
                 "}";
             
             Files.write(configFile.toPath(), config.getBytes());
-            System.out.println("✅ Kimi K2.5 配置已写入");
+            System.out.println("✅ 配置已写入");
 
             // 3. 创建 workspace 目录
             new File(baseDir + "/.openclaw/workspace").mkdirs();
