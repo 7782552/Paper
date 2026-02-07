@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-Wm6jTDvJ9lVN06MlEpT2b3mOa0upU9z9NHPniIY0308dWHx8";  // ← 换成真实的
+            String kimiApiKey = "sk-NsMgN8JixcrB1L14UKMZEDuY5eMYdsWqit1VPSO8pOf5diKy";  // ← 换成真实的
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
@@ -83,7 +83,7 @@ public class PaperBootstrap {
                 "  \"gateway\": {\n" +
                 "    \"port\": 18789,\n" +
                 "    \"mode\": \"local\",\n" +
-                "    \"bind\": \"lan\",\n" +
+                "    \"bind\": \"loopback\",\n" +
                 "    \"auth\": {\n" +
                 "      \"mode\": \"token\",\n" +
                 "      \"token\": \"admin123\"\n" +
@@ -100,7 +100,7 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), config.getBytes());
 
-            // 3. 创建反向代理脚本
+            // 3. 创建反向代理（OpenClaw 在根路径，n8n 在 /n8n/）
             System.out.println("📝 创建反向代理...");
             String proxyScript = 
                 "const http = require('http');\n" +
@@ -108,58 +108,51 @@ public class PaperBootstrap {
                 "\n" +
                 "const proxy = httpProxy.createProxyServer({});\n" +
                 "\n" +
-                "const server = http.createServer((req, res) => {\n" +
-                "  // /claw 路径 -> OpenClaw Gateway\n" +
-                "  if (req.url.startsWith('/claw')) {\n" +
-                "    req.url = req.url.replace('/claw', '');\n" +
-                "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
-                "  } else {\n" +
-                "    // 其他 -> n8n\n" +
-                "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
+                "proxy.on('error', (err, req, res) => {\n" +
+                "  console.error('Proxy error:', err.message);\n" +
+                "  if (res.writeHead) {\n" +
+                "    res.writeHead(502);\n" +
+                "    res.end('Bad Gateway');\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
-                "// WebSocket 支持\n" +
-                "server.on('upgrade', (req, socket, head) => {\n" +
-                "  if (req.url.startsWith('/claw')) {\n" +
-                "    req.url = req.url.replace('/claw', '');\n" +
-                "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:18789' });\n" +
+                "const server = http.createServer((req, res) => {\n" +
+                "  // /n8n/* -> n8n\n" +
+                "  if (req.url.startsWith('/n8n')) {\n" +
+                "    req.url = req.url.replace('/n8n', '') || '/';\n" +
+                "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
                 "  } else {\n" +
+                "    // 其他 -> OpenClaw\n" +
+                "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
+                "  }\n" +
+                "});\n" +
+                "\n" +
+                "server.on('upgrade', (req, socket, head) => {\n" +
+                "  if (req.url.startsWith('/n8n')) {\n" +
+                "    req.url = req.url.replace('/n8n', '') || '/';\n" +
                 "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:5678' });\n" +
+                "  } else {\n" +
+                "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:18789' });\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
                 "server.listen(30196, '0.0.0.0', () => {\n" +
                 "  console.log('🔀 代理服务器运行在 :30196');\n" +
-                "  console.log('   /claw/* -> OpenClaw');\n" +
-                "  console.log('   /*      -> n8n');\n" +
+                "  console.log('   /*      -> OpenClaw (18789)');\n" +
+                "  console.log('   /n8n/*  -> n8n (5678)');\n" +
                 "});\n";
             
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxyScript.getBytes());
 
-            // 4. 安装 http-proxy（如果没有）
-            System.out.println("📦 检查 http-proxy...");
-            File httpProxyDir = new File(baseDir + "/node_modules/http-proxy");
-            if (!httpProxyDir.exists()) {
-                System.out.println("📦 安装 http-proxy...");
-                ProcessBuilder npmPb = new ProcessBuilder(
-                    baseDir + "/node-v22/bin/npm", "install", "http-proxy"
-                );
-                npmPb.environment().putAll(env);
-                npmPb.directory(new File(baseDir));
-                npmPb.inheritIO();
-                npmPb.start().waitFor();
-            }
-
-            // 5. 创建目录
+            // 4. 创建目录
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
             System.out.println("\n📋 模型: moonshot/kimi-k2.5");
             System.out.println("📋 浏览器: Chromium ✅");
 
-            // 6. 启动 n8n（内部端口 5678）
-            System.out.println("\n🚀 启动 n8n (内部端口 5678)...");
+            // 5. 启动 n8n
+            System.out.println("\n🚀 启动 n8n (端口 5678)...");
             ProcessBuilder n8nPb = new ProcessBuilder(
                 nodeBin, "--max-old-space-size=2048",
                 baseDir + "/node_modules/.bin/n8n", "start"
@@ -177,12 +170,12 @@ public class PaperBootstrap {
             n8nPb.start();
             Thread.sleep(5000);
 
-            // 7. 启动 OpenClaw Gateway（内部端口 18789）
-            System.out.println("\n🚀 启动 Gateway (内部端口 18789)...");
+            // 6. 启动 OpenClaw Gateway
+            System.out.println("\n🚀 启动 Gateway (端口 18789)...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
                 "--port", "18789",
-                "--bind", "127.0.0.1",
+                "--bind", "loopback",
                 "--token", "admin123",
                 "--verbose"
             );
@@ -192,8 +185,8 @@ public class PaperBootstrap {
             gatewayPb.start();
             Thread.sleep(3000);
 
-            // 8. 启动反向代理（公网端口 30196）
-            System.out.println("\n🚀 启动反向代理 (公网端口 30196)...");
+            // 7. 启动反向代理
+            System.out.println("\n🚀 启动反向代理 (端口 30196)...");
             ProcessBuilder proxyPb = new ProcessBuilder(
                 nodeBin, baseDir + "/proxy.js"
             );
