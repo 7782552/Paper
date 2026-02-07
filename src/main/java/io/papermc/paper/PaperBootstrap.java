@@ -8,7 +8,7 @@ import java.nio.file.*;
 public class PaperBootstrap {
     
     // ========== 改这里 ==========
-    static String geminiApiKey = "换成你的新KEY";
+    static String geminiApiKey = "AIzaSyANX78IcQRsfLtRpJWh-GlShMy2DkRRQiQ";
     static String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
     static String model = "google/gemini-1.5-flash";
     // ============================
