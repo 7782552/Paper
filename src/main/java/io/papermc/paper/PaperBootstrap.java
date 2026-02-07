@@ -91,8 +91,7 @@ public class PaperBootstrap {
                 "      \"token\": \"" + gatewayToken + "\"\n" +
                 "    },\n" +
                 "    \"controlUi\": {\n" +
-                "      \"allowInsecureAuth\": true,\n" +
-                "      \"allowInsecureDevice\": true\n" +
+                "      \"allowInsecureAuth\": true\n" +
                 "    }\n" +
                 "  },\n" +
                 "  \"plugins\": {\n" +
