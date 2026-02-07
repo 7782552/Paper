@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "你的Kimi_API_Key";  // ← 换成真实的
+            String kimiApiKey = "sk-7wFMtcNvCXhEekOAcXM6wNQpaKXkdyGy7MjKMuQPqxTzgQmu";  // ← 换成真实的
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
