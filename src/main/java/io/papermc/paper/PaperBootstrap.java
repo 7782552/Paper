@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String geminiApiKey = "AIzaSyCpolv3ZpSbdc9cTHlCqbURbdDhppxQ_90";
+            String geminiApiKey = "AIzaSyBH7qjW5Y_wBAwRadLF4SW-6R6Q-7H0-_E";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
@@ -21,7 +21,7 @@ public class PaperBootstrap {
             env.put("HOME", baseDir);
             env.put("GEMINI_API_KEY", geminiApiKey);
 
-            // 0. 删除 Telegram Webhook
+            // 0. 删除 Webhook
             System.out.println("🗑️ 删除 Telegram Webhook...");
             URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -61,37 +61,90 @@ public class PaperBootstrap {
             onboardPb.start().waitFor();
             Thread.sleep(2000);
 
-            // 3. 配置 Telegram - 顺序很重要！
-            System.out.println("📝 配置 Telegram...");
-            runCommand(env, baseDir, nodeBin, ocBin, "config", "set", 
-                "channels.telegram.botToken", telegramToken);
-            
-            // 先设置 allowFrom，再设置 dmPolicy
-            System.out.println("📝 设置 allowFrom...");
-            runCommand(env, baseDir, nodeBin, ocBin, "config", "set", 
-                "channels.telegram.allowFrom", "*");
-            
-            System.out.println("📝 设置 dmPolicy...");
-            runCommand(env, baseDir, nodeBin, ocBin, "config", "set", 
-                "channels.telegram.dmPolicy", "open");
-            
-            System.out.println("📝 配置模型...");
-            runCommand(env, baseDir, nodeBin, ocBin, "config", "set", 
-                "agents.defaults.model.primary", "google/gemini-2.0-flash");
-
-            // 4. 启用 Telegram 插件
-            System.out.println("📝 启用 Telegram...");
-            runCommand(env, baseDir, nodeBin, ocBin, "config", "set", 
-                "plugins.entries.telegram.enabled", "true");
-
-            // 5. 显示配置
-            System.out.println("\n📋 当前配置:");
+            // 3. 直接写入完整正确的配置
+            System.out.println("📝 写入正确配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
-            if (configFile.exists()) {
-                System.out.println(new String(Files.readAllBytes(configFile.toPath())));
-            }
+            
+            String config = "{\n" +
+                "  \"meta\": {\n" +
+                "    \"lastTouchedVersion\": \"2026.2.3-1\",\n" +
+                "    \"lastTouchedAt\": \"" + java.time.Instant.now().toString() + "\"\n" +
+                "  },\n" +
+                "  \"wizard\": {\n" +
+                "    \"lastRunAt\": \"" + java.time.Instant.now().toString() + "\",\n" +
+                "    \"lastRunVersion\": \"2026.2.3-1\",\n" +
+                "    \"lastRunCommand\": \"onboard\",\n" +
+                "    \"lastRunMode\": \"local\"\n" +
+                "  },\n" +
+                "  \"auth\": {\n" +
+                "    \"profiles\": {\n" +
+                "      \"google:default\": {\n" +
+                "        \"provider\": \"google\",\n" +
+                "        \"mode\": \"api_key\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  },\n" +
+                "  \"agents\": {\n" +
+                "    \"defaults\": {\n" +
+                "      \"model\": {\n" +
+                "        \"primary\": \"google/gemini-2.0-flash\"\n" +
+                "      },\n" +
+                "      \"workspace\": \"/home/container/.openclaw/workspace\",\n" +
+                "      \"compaction\": {\n" +
+                "        \"mode\": \"safeguard\"\n" +
+                "      },\n" +
+                "      \"maxConcurrent\": 4,\n" +
+                "      \"subagents\": {\n" +
+                "        \"maxConcurrent\": 8\n" +
+                "      }\n" +
+                "    }\n" +
+                "  },\n" +
+                "  \"messages\": {\n" +
+                "    \"ackReactionScope\": \"group-mentions\"\n" +
+                "  },\n" +
+                "  \"commands\": {\n" +
+                "    \"native\": \"auto\",\n" +
+                "    \"nativeSkills\": \"auto\"\n" +
+                "  },\n" +
+                "  \"channels\": {\n" +
+                "    \"telegram\": {\n" +
+                "      \"dmPolicy\": \"open\",\n" +
+                "      \"botToken\": \"" + telegramToken + "\",\n" +
+                "      \"groupPolicy\": \"open\",\n" +
+                "      \"streamMode\": \"partial\",\n" +
+                "      \"allowFrom\": [\"*\"]\n" +
+                "    }\n" +
+                "  },\n" +
+                "  \"gateway\": {\n" +
+                "    \"port\": 18789,\n" +
+                "    \"mode\": \"local\",\n" +
+                "    \"bind\": \"lan\",\n" +
+                "    \"auth\": {\n" +
+                "      \"mode\": \"token\",\n" +
+                "      \"token\": \"admin123\"\n" +
+                "    },\n" +
+                "    \"tailscale\": {\n" +
+                "      \"mode\": \"off\",\n" +
+                "      \"resetOnExit\": false\n" +
+                "    }\n" +
+                "  },\n" +
+                "  \"plugins\": {\n" +
+                "    \"entries\": {\n" +
+                "      \"telegram\": {\n" +
+                "        \"enabled\": true\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+            
+            Files.write(configFile.toPath(), config.getBytes());
+            System.out.println("✅ 配置已写入");
 
-            // 6. 启动 n8n
+            // 4. 显示配置
+            System.out.println("\n📋 配置内容:");
+            System.out.println(config);
+
+            // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
             File n8nDir = new File(baseDir + "/.n8n");
             if (!n8nDir.exists()) n8nDir.mkdirs();
@@ -115,7 +168,7 @@ public class PaperBootstrap {
             n8nPb.start();
             Thread.sleep(8000);
 
-            // 7. 启动 Gateway
+            // 6. 启动 Gateway
             System.out.println("\n🚀 启动 Gateway...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
@@ -132,14 +185,6 @@ public class PaperBootstrap {
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
-
-    static void runCommand(Map<String, String> env, String workDir, String... cmd) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.environment().putAll(env);
-        pb.directory(new File(workDir));
-        pb.inheritIO();
-        pb.start().waitFor();
     }
 
     static void deleteDirectory(File dir) {
