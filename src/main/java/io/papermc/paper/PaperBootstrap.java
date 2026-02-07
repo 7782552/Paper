@@ -8,7 +8,7 @@ import java.nio.file.*;
 public class PaperBootstrap {
     
     // ========== 改这里 ==========
-    static String geminiApiKey = "AIzaSyANX78IcQRsfLtRpJWh-GlShMy2DkRRQiQ";
+    static String geminiApiKey = "AIzaSyANX78IcQRsfLtRpJWh-GlShMy2DkRRQiQ";  // 你的 Key
     static String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
     static String model = "google/gemini-1.5-flash";
     // ============================
@@ -33,40 +33,44 @@ public class PaperBootstrap {
             conn.setRequestMethod("GET");
             conn.getResponseCode();
 
-            // 检查配置
-            File configFile = new File(baseDir + "/.openclaw/openclaw.json");
-            if (!configFile.exists()) {
-                System.out.println("📝 首次运行 onboard...");
-                File openclawDir = new File(baseDir + "/.openclaw");
-                if (openclawDir.exists()) deleteDirectory(openclawDir);
-                Thread.sleep(500);
-                
-                ProcessBuilder onboardPb = new ProcessBuilder(
-                    nodeBin, ocBin, "onboard",
-                    "--non-interactive", "--accept-risk",
-                    "--mode", "local",
-                    "--auth-choice", "gemini-api-key",
-                    "--gemini-api-key", geminiApiKey,
-                    "--gateway-port", "18789",
-                    "--gateway-bind", "lan",
-                    "--gateway-auth", "token",
-                    "--gateway-token", "admin123",
-                    "--skip-daemon", "--skip-channels",
-                    "--skip-skills", "--skip-health", "--skip-ui"
-                );
-                onboardPb.environment().putAll(env);
-                onboardPb.directory(new File(baseDir));
-                onboardPb.inheritIO();
-                onboardPb.start().waitFor();
-                Thread.sleep(2000);
-                
-                String config = createConfig(model, telegramToken);
-                Files.write(configFile.toPath(), config.getBytes());
-            } else {
-                System.out.println("✅ 使用现有配置");
+            // 【强制删除旧配置】
+            System.out.println("🧹 删除旧配置...");
+            File openclawDir = new File(baseDir + "/.openclaw");
+            if (openclawDir.exists()) {
+                deleteDirectory(openclawDir);
+                System.out.println("   ✅ 已删除");
             }
+            Thread.sleep(1000);
 
-            // 启动 n8n（端口 30196）
+            // 运行 onboard
+            System.out.println("📝 运行 onboard...");
+            ProcessBuilder onboardPb = new ProcessBuilder(
+                nodeBin, ocBin, "onboard",
+                "--non-interactive", "--accept-risk",
+                "--mode", "local",
+                "--auth-choice", "gemini-api-key",
+                "--gemini-api-key", geminiApiKey,
+                "--gateway-port", "18789",
+                "--gateway-bind", "lan",
+                "--gateway-auth", "token",
+                "--gateway-token", "admin123",
+                "--skip-daemon", "--skip-channels",
+                "--skip-skills", "--skip-health", "--skip-ui"
+            );
+            onboardPb.environment().putAll(env);
+            onboardPb.directory(new File(baseDir));
+            onboardPb.inheritIO();
+            onboardPb.start().waitFor();
+            Thread.sleep(2000);
+
+            // 写入正确的配置
+            System.out.println("📝 写入配置...");
+            File configFile = new File(baseDir + "/.openclaw/openclaw.json");
+            String config = createConfig(model, telegramToken);
+            Files.write(configFile.toPath(), config.getBytes());
+            System.out.println("   ✅ 模型: " + model);
+
+            // 启动 n8n
             System.out.println("🚀 启动 n8n (端口 30196)...");
             File n8nDir = new File(baseDir + "/.n8n");
             if (!n8nDir.exists()) n8nDir.mkdirs();
@@ -89,17 +93,16 @@ public class PaperBootstrap {
             
             Thread.sleep(8000);
 
-            // 启动 Gateway（内部端口 18789）
+            // 启动 Gateway
             System.out.println("🚀 启动 OpenClaw Gateway...");
             System.out.println("");
             System.out.println("═".repeat(50));
             System.out.println("🎉 启动完成！");
             System.out.println("═".repeat(50));
             System.out.println("📌 模型: " + model);
-            System.out.println("🤖 Telegram Bot: 已启动");
+            System.out.println("🔑 API Key: " + geminiApiKey.substring(0, 15) + "...");
+            System.out.println("🤖 Telegram Bot: @claw_test_008_bot");
             System.out.println("🌐 n8n: http://你的IP:30196");
-            System.out.println("");
-            System.out.println("💡 换模型/API Key: 修改代码顶部，重启即可");
             System.out.println("═".repeat(50));
 
             ProcessBuilder gatewayPb = new ProcessBuilder(
