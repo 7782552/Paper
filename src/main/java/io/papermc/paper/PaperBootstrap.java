@@ -10,7 +10,7 @@ public class PaperBootstrap {
     // ========== 改这里 ==========
     static String geminiApiKey = "AIzaSyA1JaNDulB79qXkXfVM2OADeioFQeP02MU";
     static String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
-    static String model = "google/gemini-1.5-flash";
+    static String model = "google/gemini-2.0-flash";
     // ============================
     
     public static void main(String[] args) {
