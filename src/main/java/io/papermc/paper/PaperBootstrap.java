@@ -40,7 +40,7 @@ public class PaperBootstrap {
             }
             openclawDir.mkdirs();
 
-            // 2. 写入配置（允许不安全的 HTTP）
+            // 2. 写入配置
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
@@ -91,7 +91,8 @@ public class PaperBootstrap {
                 "      \"token\": \"" + gatewayToken + "\"\n" +
                 "    },\n" +
                 "    \"controlUi\": {\n" +
-                "      \"allowInsecureAuth\": true\n" +
+                "      \"allowInsecureAuth\": true,\n" +
+                "      \"allowInsecureDevice\": true\n" +
                 "    }\n" +
                 "  },\n" +
                 "  \"plugins\": {\n" +
@@ -105,7 +106,7 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), config.getBytes());
 
-            // 3. 创建反向代理（修复 n8n 路径）
+            // 3. 创建反向代理
             System.out.println("📝 创建反向代理...");
             String proxyScript = 
                 "const http = require('http');\n" +
