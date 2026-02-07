@@ -8,7 +8,7 @@ import java.nio.file.*;
 public class PaperBootstrap {
     
     // ========== 改这里 ==========
-    static String geminiApiKey = "AIzaSyBH7qjW5Y_wBAwRadLF4SW-6R6Q-7H0-_E";
+    static String geminiApiKey = "换成你的新KEY";
     static String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
     static String model = "google/gemini-1.5-flash";
     // ============================
@@ -60,7 +60,6 @@ public class PaperBootstrap {
                 onboardPb.start().waitFor();
                 Thread.sleep(2000);
                 
-                // 写入配置
                 String config = createConfig(model, telegramToken);
                 Files.write(configFile.toPath(), config.getBytes());
             } else {
@@ -72,7 +71,7 @@ public class PaperBootstrap {
             File proxyFile = new File(baseDir + "/proxy.mjs");
             Files.write(proxyFile.toPath(), createProxyScript().getBytes());
 
-            // 启动 n8n（内部端口 5678）
+            // 启动 n8n
             System.out.println("🚀 启动 n8n (内部端口 5678)...");
             File n8nDir = new File(baseDir + "/.n8n");
             if (!n8nDir.exists()) n8nDir.mkdirs();
@@ -93,7 +92,7 @@ public class PaperBootstrap {
             n8nPb.inheritIO();
             n8nPb.start();
 
-            // 启动 OpenClaw Gateway（内部端口 18789）
+            // 启动 OpenClaw Gateway
             System.out.println("🚀 启动 OpenClaw Gateway (内部端口 18789)...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
@@ -106,11 +105,9 @@ public class PaperBootstrap {
             gatewayPb.inheritIO();
             gatewayPb.start();
 
-            // 等待服务启动
             System.out.println("⏳ 等待服务启动...");
             Thread.sleep(10000);
 
-            // 启动反向代理（对外端口 30196）
             System.out.println("");
             System.out.println("═".repeat(55));
             System.out.println("🎉 所有服务已启动！");
@@ -142,8 +139,9 @@ public class PaperBootstrap {
             "const OC_PORT = 18789;\n" +
             "const LISTEN_PORT = 30196;\n" +
             "\n" +
-            "function proxy(req, res, targetPort, modifyPath = null) {\n" +
-            "    const path = modifyPath ? modifyPath(req.url) : req.url;\n" +
+            "function proxy(req, res, targetPort, rewritePath) {\n" +
+            "    const path = rewritePath || req.url;\n" +
+            "    \n" +
             "    const opts = {\n" +
             "        hostname: '127.0.0.1',\n" +
             "        port: targetPort,\n" +
@@ -153,14 +151,19 @@ public class PaperBootstrap {
             "    };\n" +
             "    \n" +
             "    const proxyReq = http.request(opts, (proxyRes) => {\n" +
-            "        res.writeHead(proxyRes.statusCode, proxyRes.headers);\n" +
+            "        // 修改响应中的重定向路径\n" +
+            "        let headers = { ...proxyRes.headers };\n" +
+            "        if (headers.location && targetPort === OC_PORT) {\n" +
+            "            headers.location = headers.location.replace('/__openclaw__/canvas', '/oc');\n" +
+            "        }\n" +
+            "        res.writeHead(proxyRes.statusCode, headers);\n" +
             "        proxyRes.pipe(res);\n" +
             "    });\n" +
             "    \n" +
             "    proxyReq.on('error', (e) => {\n" +
-            "        console.error('Proxy error:', e.message);\n" +
+            "        console.error('Proxy error to port ' + targetPort + ':', e.message);\n" +
             "        res.writeHead(502);\n" +
-            "        res.end('Bad Gateway: ' + e.message);\n" +
+            "        res.end('Bad Gateway: ' + e.message + ' (target port: ' + targetPort + ')');\n" +
             "    });\n" +
             "    \n" +
             "    req.pipe(proxyReq);\n" +
@@ -169,50 +172,64 @@ public class PaperBootstrap {
             "function proxyWebSocket(req, socket, head, targetPort) {\n" +
             "    const target = net.connect(targetPort, '127.0.0.1', () => {\n" +
             "        target.write(\n" +
-            "            `${req.method} ${req.url} HTTP/1.1\\r\\n` +\n" +
-            "            Object.entries(req.headers).map(([k,v]) => `${k}: ${v}`).join('\\r\\n') +\n" +
+            "            req.method + ' ' + req.url + ' HTTP/1.1\\r\\n' +\n" +
+            "            Object.entries(req.headers).map(([k,v]) => k + ': ' + v).join('\\r\\n') +\n" +
             "            '\\r\\n\\r\\n'\n" +
             "        );\n" +
-            "        target.write(head);\n" +
+            "        if (head && head.length) target.write(head);\n" +
             "        socket.pipe(target).pipe(socket);\n" +
             "    });\n" +
             "    \n" +
             "    target.on('error', (e) => {\n" +
-            "        console.error('WebSocket proxy error:', e.message);\n" +
+            "        console.error('WS proxy error:', e.message);\n" +
             "        socket.end();\n" +
             "    });\n" +
-            "    \n" +
             "    socket.on('error', () => target.end());\n" +
             "}\n" +
             "\n" +
             "const server = http.createServer((req, res) => {\n" +
             "    const url = req.url || '/';\n" +
+            "    console.log('[proxy] ' + req.method + ' ' + url);\n" +
             "    \n" +
-            "    // /oc/* -> OpenClaw Canvas\n" +
-            "    if (url.startsWith('/oc')) {\n" +
-            "        proxy(req, res, OC_PORT, (p) => p.replace('/oc', '/__openclaw__/canvas'));\n" +
+            "    // /oc 或 /oc/* -> OpenClaw Canvas\n" +
+            "    if (url === '/oc' || url.startsWith('/oc/') || url.startsWith('/oc?')) {\n" +
+            "        let newPath = url.replace(/^\\/oc/, '/__openclaw__/canvas');\n" +
+            "        if (newPath === '/__openclaw__/canvas') newPath = '/__openclaw__/canvas/';\n" +
+            "        console.log('[proxy] -> OpenClaw: ' + newPath);\n" +
+            "        proxy(req, res, OC_PORT, newPath);\n" +
             "    }\n" +
-            "    // /__openclaw__/* -> OpenClaw\n" +
+            "    // /__openclaw__/* -> OpenClaw (直接访问)\n" +
             "    else if (url.startsWith('/__openclaw__')) {\n" +
-            "        proxy(req, res, OC_PORT);\n" +
+            "        console.log('[proxy] -> OpenClaw: ' + url);\n" +
+            "        proxy(req, res, OC_PORT, url);\n" +
             "    }\n" +
-            "    // 其他 -> n8n\n" +
+            "    // 其他所有 -> n8n\n" +
             "    else {\n" +
-            "        proxy(req, res, N8N_PORT);\n" +
+            "        console.log('[proxy] -> n8n: ' + url);\n" +
+            "        proxy(req, res, N8N_PORT, url);\n" +
             "    }\n" +
             "});\n" +
             "\n" +
             "server.on('upgrade', (req, socket, head) => {\n" +
             "    const url = req.url || '/';\n" +
-            "    const targetPort = url.includes('openclaw') || url.startsWith('/oc') ? OC_PORT : N8N_PORT;\n" +
+            "    let targetPort = N8N_PORT;\n" +
+            "    \n" +
+            "    if (url.startsWith('/oc') || url.startsWith('/__openclaw__')) {\n" +
+            "        targetPort = OC_PORT;\n" +
+            "        if (url.startsWith('/oc')) {\n" +
+            "            req.url = url.replace(/^\\/oc/, '/__openclaw__/canvas');\n" +
+            "        }\n" +
+            "    }\n" +
+            "    \n" +
+            "    console.log('[ws] ' + url + ' -> port ' + targetPort);\n" +
             "    proxyWebSocket(req, socket, head, targetPort);\n" +
             "});\n" +
             "\n" +
             "server.listen(LISTEN_PORT, '0.0.0.0', () => {\n" +
             "    console.log('');\n" +
             "    console.log('🌐 反向代理已启动: http://0.0.0.0:' + LISTEN_PORT);\n" +
-            "    console.log('   /      -> n8n');\n" +
-            "    console.log('   /oc/   -> OpenClaw Canvas');\n" +
+            "    console.log('   /       -> n8n (port 5678)');\n" +
+            "    console.log('   /oc/    -> OpenClaw Canvas (port 18789)');\n" +
             "    console.log('');\n" +
             "});\n";
     }
