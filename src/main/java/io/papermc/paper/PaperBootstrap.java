@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-NsMgN8JixcrB1L14UKMZEDuY5eMYdsWqit1VPSO8pOf5diKy";  // ← 换成真实的
+            String kimiApiKey = "sk-qVF1IUVhokMxv2Fsp3CBcyYVNiR8Rz5OakjNn0PTzBQcPDVv";  // ← 换成真实的
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
 
             Map<String, String> env = new HashMap<>();
@@ -38,7 +38,7 @@ public class PaperBootstrap {
             }
             openclawDir.mkdirs();
 
-            // 2. 写入配置
+            // 2. 写入配置（添加 trustedProxies）
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
@@ -83,7 +83,8 @@ public class PaperBootstrap {
                 "  \"gateway\": {\n" +
                 "    \"port\": 18789,\n" +
                 "    \"mode\": \"local\",\n" +
-                "    \"bind\": \"loopback\",\n" +
+                "    \"bind\": \"lan\",\n" +
+                "    \"trustedProxies\": [\"127.0.0.1\", \"::1\"],\n" +
                 "    \"auth\": {\n" +
                 "      \"mode\": \"token\",\n" +
                 "      \"token\": \"admin123\"\n" +
@@ -100,13 +101,15 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), config.getBytes());
 
-            // 3. 创建反向代理（OpenClaw 在根路径，n8n 在 /n8n/）
+            // 3. 创建反向代理（转发 X-Forwarded-For）
             System.out.println("📝 创建反向代理...");
             String proxyScript = 
                 "const http = require('http');\n" +
                 "const httpProxy = require('http-proxy');\n" +
                 "\n" +
-                "const proxy = httpProxy.createProxyServer({});\n" +
+                "const proxy = httpProxy.createProxyServer({\n" +
+                "  xfwd: true\n" +  // 添加 X-Forwarded-For
+                "});\n" +
                 "\n" +
                 "proxy.on('error', (err, req, res) => {\n" +
                 "  console.error('Proxy error:', err.message);\n" +
@@ -117,12 +120,10 @@ public class PaperBootstrap {
                 "});\n" +
                 "\n" +
                 "const server = http.createServer((req, res) => {\n" +
-                "  // /n8n/* -> n8n\n" +
                 "  if (req.url.startsWith('/n8n')) {\n" +
                 "    req.url = req.url.replace('/n8n', '') || '/';\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
                 "  } else {\n" +
-                "    // 其他 -> OpenClaw\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
                 "  }\n" +
                 "});\n" +
@@ -150,6 +151,8 @@ public class PaperBootstrap {
 
             System.out.println("\n📋 模型: moonshot/kimi-k2.5");
             System.out.println("📋 浏览器: Chromium ✅");
+            System.out.println("📋 OpenClaw: http://node.zenix.sg:30196/");
+            System.out.println("📋 n8n: http://node.zenix.sg:30196/n8n/");
 
             // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n (端口 5678)...");
@@ -175,7 +178,7 @@ public class PaperBootstrap {
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
                 "--port", "18789",
-                "--bind", "loopback",
+                "--bind", "lan",
                 "--token", "admin123",
                 "--verbose"
             );
