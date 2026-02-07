@@ -13,7 +13,7 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-7wFMtcNvCXhEekOAcXM6wNQpaKXkdyGy7MjKMuQPqxTzgQmu";  // ← 换成真实的
+            String kimiApiKey = "你的Kimi_API_Key";  // ← 换成真实的
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
@@ -103,7 +103,7 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), config.getBytes());
 
-            // 3. 创建反向代理
+            // 3. 创建反向代理（n8n 在根路径，claw 在 /claw/）
             System.out.println("📝 创建反向代理...");
             String proxyScript = 
                 "const http = require('http');\n" +
@@ -120,27 +120,29 @@ public class PaperBootstrap {
                 "});\n" +
                 "\n" +
                 "const server = http.createServer((req, res) => {\n" +
-                "  if (req.url.startsWith('/n8n')) {\n" +
-                "    req.url = req.url.slice(4) || '/';\n" +
-                "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
-                "  } else {\n" +
+                "  // /claw 开头转发到 OpenClaw\n" +
+                "  if (req.url.startsWith('/claw')) {\n" +
+                "    req.url = req.url.slice(5) || '/';\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
+                "  } else {\n" +
+                "    // 其他都给 n8n\n" +
+                "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
                 "server.on('upgrade', (req, socket, head) => {\n" +
-                "  if (req.url.startsWith('/n8n')) {\n" +
-                "    req.url = req.url.slice(4) || '/';\n" +
-                "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:5678' });\n" +
-                "  } else {\n" +
+                "  if (req.url.startsWith('/claw')) {\n" +
+                "    req.url = req.url.slice(5) || '/';\n" +
                 "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:18789' });\n" +
+                "  } else {\n" +
+                "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:5678' });\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
                 "server.listen(30196, '0.0.0.0', () => {\n" +
                 "  console.log('🔀 代理运行在 :30196');\n" +
-                "  console.log('   https://5.5ccc.cc.cd/     -> OpenClaw');\n" +
-                "  console.log('   https://5.5ccc.cc.cd/n8n/ -> n8n');\n" +
+                "  console.log('   https://5.5ccc.cc.cd/      -> n8n');\n" +
+                "  console.log('   https://5.5ccc.cc.cd/claw/ -> OpenClaw');\n" +
                 "});\n";
             
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxyScript.getBytes());
@@ -151,8 +153,8 @@ public class PaperBootstrap {
 
             System.out.println("\n📋 模型: moonshot/kimi-k2.5");
             System.out.println("📋 浏览器: Chromium ✅");
-            System.out.println("📋 OpenClaw: https://5.5ccc.cc.cd/");
-            System.out.println("📋 n8n: https://5.5ccc.cc.cd/n8n/");
+            System.out.println("📋 n8n: https://5.5ccc.cc.cd/");
+            System.out.println("📋 OpenClaw: https://5.5ccc.cc.cd/claw/");
 
             // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
