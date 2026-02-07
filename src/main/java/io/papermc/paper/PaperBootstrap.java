@@ -103,7 +103,7 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), config.getBytes());
 
-            // 3. 创建反向代理（等待后端就绪后重试）
+            // 3. 创建反向代理（根据域名分发）
             System.out.println("📝 创建反向代理...");
             String proxyScript = 
                 "const http = require('http');\n" +
@@ -115,29 +115,27 @@ public class PaperBootstrap {
                 "  console.error('Proxy:', err.message);\n" +
                 "  if (res && res.writeHead) {\n" +
                 "    res.writeHead(503);\n" +
-                "    res.end('Service starting, please refresh in a few seconds...');\n" +
+                "    res.end('Service starting...');\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
                 "const server = http.createServer((req, res) => {\n" +
                 "  const host = req.headers.host || '';\n" +
                 "  \n" +
-                "  // 根据路径分发\n" +
-                "  if (req.url.startsWith('/claw') || req.url.startsWith('/__openclaw__')) {\n" +
-                "    if (req.url.startsWith('/claw')) {\n" +
-                "      req.url = req.url.slice(5) || '/';\n" +
-                "    }\n" +
+                "  // 根据域名分发\n" +
+                "  if (host.startsWith('5.')) {\n" +
+                "    // 5.5ccc.cc.cd -> OpenClaw\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
                 "  } else {\n" +
+                "    // n8n.5ccc.cc.cd -> n8n\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
                 "server.on('upgrade', (req, socket, head) => {\n" +
-                "  if (req.url.startsWith('/claw') || req.url.startsWith('/__openclaw__')) {\n" +
-                "    if (req.url.startsWith('/claw')) {\n" +
-                "      req.url = req.url.slice(5) || '/';\n" +
-                "    }\n" +
+                "  const host = req.headers.host || '';\n" +
+                "  \n" +
+                "  if (host.startsWith('5.')) {\n" +
                 "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:18789' });\n" +
                 "  } else {\n" +
                 "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:5678' });\n" +
@@ -146,8 +144,8 @@ public class PaperBootstrap {
                 "\n" +
                 "server.listen(30196, '0.0.0.0', () => {\n" +
                 "  console.log('🔀 代理运行在 :30196');\n" +
-                "  console.log('   https://5.5ccc.cc.cd/      -> n8n');\n" +
-                "  console.log('   https://5.5ccc.cc.cd/claw/ -> OpenClaw');\n" +
+                "  console.log('   https://5.5ccc.cc.cd/   -> OpenClaw');\n" +
+                "  console.log('   https://n8n.5ccc.cc.cd/ -> n8n');\n" +
                 "});\n";
             
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxyScript.getBytes());
@@ -158,20 +156,10 @@ public class PaperBootstrap {
 
             System.out.println("\n📋 模型: moonshot/kimi-k2.5");
             System.out.println("📋 浏览器: Chromium ✅");
+            System.out.println("📋 OpenClaw: https://5.5ccc.cc.cd/");
+            System.out.println("📋 n8n: https://n8n.5ccc.cc.cd/");
 
-            // 5. 先启动反向代理
-            System.out.println("\n🚀 启动反向代理...");
-            ProcessBuilder proxyPb = new ProcessBuilder(
-                nodeBin, baseDir + "/proxy.js"
-            );
-            proxyPb.environment().putAll(env);
-            proxyPb.directory(new File(baseDir));
-            proxyPb.inheritIO();
-            proxyPb.start();
-            
-            Thread.sleep(2000);
-
-            // 6. 启动 n8n
+            // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
             ProcessBuilder n8nPb = new ProcessBuilder(
                 nodeBin, "--max-old-space-size=2048",
@@ -189,10 +177,8 @@ public class PaperBootstrap {
             n8nPb.inheritIO();
             n8nPb.start();
 
-            Thread.sleep(3000);
-
-            // 7. 启动 OpenClaw Gateway
-            System.out.println("\n🚀 启动 Gateway...");
+            // 6. 启动 OpenClaw Gateway
+            System.out.println("🚀 启动 Gateway...");
             ProcessBuilder gatewayPb = new ProcessBuilder(
                 nodeBin, ocBin, "gateway",
                 "--port", "18789",
@@ -203,7 +189,21 @@ public class PaperBootstrap {
             gatewayPb.environment().putAll(env);
             gatewayPb.directory(new File(baseDir));
             gatewayPb.inheritIO();
-            gatewayPb.start().waitFor();
+            gatewayPb.start();
+
+            // 等待后端启动
+            System.out.println("\n⏳ 等待服务启动...");
+            Thread.sleep(15000);
+
+            // 7. 启动反向代理
+            System.out.println("\n🚀 启动反向代理...");
+            ProcessBuilder proxyPb = new ProcessBuilder(
+                nodeBin, baseDir + "/proxy.js"
+            );
+            proxyPb.environment().putAll(env);
+            proxyPb.directory(new File(baseDir));
+            proxyPb.inheritIO();
+            proxyPb.start().waitFor();
 
         } catch (Exception e) {
             e.printStackTrace();
