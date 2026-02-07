@@ -4,37 +4,59 @@ import java.io.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🔍 检查磁盘空间...");
+        System.out.println("🧹 清理并安装 Chromium...");
         try {
             String baseDir = "/home/container";
+            String npxBin = baseDir + "/node-v22/bin/npx";
             
-            // 1. 查看磁盘总体情况
-            System.out.println("\n📋 磁盘使用情况:");
-            ProcessBuilder dfPb = new ProcessBuilder("df", "-h");
-            dfPb.inheritIO();
-            dfPb.start().waitFor();
+            // 1. 删除 Docker 相关文件（不需要了）
+            System.out.println("🗑️ 清理不需要的文件...");
+            String[] toDelete = {
+                baseDir + "/docker",
+                baseDir + "/docker-rootless-extras",
+                baseDir + "/docker.tgz",
+                baseDir + "/docker-rootless.tgz",
+                baseDir + "/uidmap.apk",
+                baseDir + "/get-docker-rootless.sh",
+                baseDir + "/run",
+                baseDir + "/.docker",
+                baseDir + "/.playwright",
+                baseDir + "/.cache"
+            };
             
-            // 2. 查看 /home/container 目录大小
-            System.out.println("\n📋 /home/container 总大小:");
+            for (String path : toDelete) {
+                ProcessBuilder rmPb = new ProcessBuilder("rm", "-rf", path);
+                rmPb.start().waitFor();
+            }
+            System.out.println("✅ 清理完成");
+            
+            // 2. 检查空间
+            System.out.println("\n📋 清理后空间:");
             ProcessBuilder duPb = new ProcessBuilder("du", "-sh", baseDir);
             duPb.inheritIO();
             duPb.start().waitFor();
             
-            // 3. 查看各子目录大小
-            System.out.println("\n📋 各目录大小:");
-            ProcessBuilder du2Pb = new ProcessBuilder("du", "-sh", 
-                baseDir + "/*"
+            // 3. 设置环境变量
+            java.util.Map<String, String> env = new java.util.HashMap<>();
+            env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
+            env.put("HOME", baseDir);
+            env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
+            
+            // 4. 安装 Chromium
+            System.out.println("\n📥 安装 Chromium...");
+            ProcessBuilder installPb = new ProcessBuilder(
+                npxBin, "playwright", "install", "chromium"
             );
-            du2Pb.inheritIO();
-            du2Pb.start().waitFor();
+            installPb.environment().putAll(env);
+            installPb.inheritIO();
+            installPb.directory(new File(baseDir));
+            int result = installPb.start().waitFor();
             
-            // 用 ls 看看
-            System.out.println("\n📋 目录列表:");
-            ProcessBuilder lsPb = new ProcessBuilder("ls", "-lah", baseDir);
-            lsPb.inheritIO();
-            lsPb.start().waitFor();
-            
-            System.out.println("\n✅ 完成");
+            if (result == 0) {
+                System.out.println("✅ Chromium 安装成功！");
+            } else {
+                System.out.println("❌ 安装失败");
+            }
             
         } catch (Exception e) {
             e.printStackTrace();
