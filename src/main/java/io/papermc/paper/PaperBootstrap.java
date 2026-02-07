@@ -10,7 +10,7 @@ public class PaperBootstrap {
     public static void main(String[] args) {
         System.out.println("🦞 [OpenClaw + n8n] 正在配置 Kimi K2.5 环境 (结构修正版)...");
         
-        String kimiApiKey = "这里填入你的_Kimi_API_Key"; 
+        String kimiApiKey = "sk-R4TBmiwOQMBjiTSh91uhZEDmdtidgzu3jIXA0aqQhQaU2WIL"; 
         String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
         String baseDir = "/home/container";
 
