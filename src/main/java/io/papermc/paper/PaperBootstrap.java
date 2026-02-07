@@ -105,7 +105,7 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), config.getBytes());
 
-            // 3. 创建反向代理（n8n 不改路径，直接透传）
+            // 3. 创建反向代理（n8n 在根路径，claw 在子路径）
             System.out.println("📝 创建反向代理...");
             String proxyScript = 
                 "const http = require('http');\n" +
@@ -122,26 +122,29 @@ public class PaperBootstrap {
                 "});\n" +
                 "\n" +
                 "const server = http.createServer((req, res) => {\n" +
-                "  // /n8n 开头的请求转发到 n8n（保留完整路径）\n" +
-                "  if (req.url.startsWith('/n8n')) {\n" +
-                "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
-                "  } else {\n" +
+                "  // /claw 开头转发到 OpenClaw\n" +
+                "  if (req.url.startsWith('/claw')) {\n" +
+                "    req.url = req.url.slice(5) || '/';\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
+                "  } else {\n" +
+                "    // 其他都给 n8n\n" +
+                "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
                 "server.on('upgrade', (req, socket, head) => {\n" +
-                "  if (req.url.startsWith('/n8n')) {\n" +
-                "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:5678' });\n" +
-                "  } else {\n" +
+                "  if (req.url.startsWith('/claw')) {\n" +
+                "    req.url = req.url.slice(5) || '/';\n" +
                 "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:18789' });\n" +
+                "  } else {\n" +
+                "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:5678' });\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
                 "server.listen(30196, '0.0.0.0', () => {\n" +
                 "  console.log('🔀 代理运行在 :30196');\n" +
-                "  console.log('   http://node.zenix.sg:30196/     -> OpenClaw');\n" +
-                "  console.log('   http://node.zenix.sg:30196/n8n/ -> n8n');\n" +
+                "  console.log('   http://node.zenix.sg:30196/      -> n8n');\n" +
+                "  console.log('   http://node.zenix.sg:30196/claw/ -> OpenClaw');\n" +
                 "});\n";
             
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxyScript.getBytes());
@@ -153,7 +156,7 @@ public class PaperBootstrap {
             System.out.println("\n📋 模型: moonshot/kimi-k2.5");
             System.out.println("📋 浏览器: Chromium ✅");
 
-            // 5. 启动 n8n（配置子路径）
+            // 5. 启动 n8n（根路径，无需特殊配置）
             System.out.println("\n🚀 启动 n8n...");
             ProcessBuilder n8nPb = new ProcessBuilder(
                 nodeBin, "--max-old-space-size=2048",
@@ -164,8 +167,6 @@ public class PaperBootstrap {
             n8nPb.environment().put("N8N_HOST", "0.0.0.0");
             n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
             n8nPb.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
-            n8nPb.environment().put("N8N_PATH", "/n8n/");
-            n8nPb.environment().put("N8N_EDITOR_BASE_URL", "http://node.zenix.sg:30196/n8n/");
             n8nPb.environment().put("N8N_DIAGNOSTICS_ENABLED", "false");
             n8nPb.environment().put("N8N_VERSION_NOTIFICATIONS_ENABLED", "false");
             n8nPb.environment().put("N8N_HIRING_BANNER_ENABLED", "false");
