@@ -6,7 +6,7 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 配置中 (修复路径版)...");
+        System.out.println("🦞 [OpenClaw] 配置中 (调试版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -26,26 +26,19 @@ public class PaperBootstrap {
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
 
-            // 检查当前替换结果
-            System.out.println("📝 检查当前替换状态...");
-            ProcessBuilder check = new ProcessBuilder("sh", "-c",
-                "grep -rn '888888888888' " + baseDir + "/node_modules/@mariozechner/pi-ai/node_modules/openai/client.js 2>/dev/null | head -5"
+            // ★★★ 先用 curl 测试 API ★★★
+            System.out.println("📝 测试 G4F API...");
+            ProcessBuilder curlTest = new ProcessBuilder("sh", "-c",
+                "curl -s -X POST '" + zeaburUrl + "/chat/completions' " +
+                "-H 'Content-Type: application/json' " +
+                "-H 'Authorization: Bearer " + apiKey + "' " +
+                "-d '{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}' 2>&1 | head -20"
             );
-            check.inheritIO();
-            check.start().waitFor();
+            curlTest.inheritIO();
+            curlTest.start().waitFor();
 
-            // 先恢复原始状态
-            System.out.println("\n📝 恢复原始状态...");
-            ProcessBuilder restore = new ProcessBuilder("sh", "-c",
-                "find " + baseDir + "/node_modules -type f 2>/dev/null | " +
-                "xargs grep -l '888888888888.zeabur.app' 2>/dev/null | " +
-                "xargs sed -i 's|888888888888.zeabur.app|api.openai.com|g' 2>/dev/null; echo done"
-            );
-            restore.inheritIO();
-            restore.start().waitFor();
-            
-            // 正确替换：只替换域名
-            System.out.println("\n📝 正确替换域名...");
+            // 替换域名
+            System.out.println("\n📝 替换域名...");
             ProcessBuilder sed1 = new ProcessBuilder("sh", "-c",
                 "find " + baseDir + "/node_modules -type f 2>/dev/null | " +
                 "xargs grep -l 'api.openai.com' 2>/dev/null | " +
@@ -53,14 +46,6 @@ public class PaperBootstrap {
             );
             sed1.inheritIO();
             sed1.start().waitFor();
-
-            // 验证
-            System.out.println("\n📝 验证替换结果...");
-            ProcessBuilder verify = new ProcessBuilder("sh", "-c",
-                "grep -n 'baseURL\\|888888888888' " + baseDir + "/node_modules/@mariozechner/pi-ai/node_modules/openai/client.js 2>/dev/null | head -10"
-            );
-            verify.inheritIO();
-            verify.start().waitFor();
 
             // 删除 Webhook
             try {
@@ -146,11 +131,8 @@ public class PaperBootstrap {
         File[] files = dir.listFiles();
         if (files != null) {
             for (File f : files) {
-                if (f.isDirectory()) {
-                    deleteDirectory(f);
-                } else {
-                    f.delete();
-                }
+                if (f.isDirectory()) deleteDirectory(f);
+                else f.delete();
             }
         }
         dir.delete();
