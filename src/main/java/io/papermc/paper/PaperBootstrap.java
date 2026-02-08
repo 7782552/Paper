@@ -13,17 +13,18 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String kimiApiKey = "sk-7wFMtcNvCXhEekOAcXM6wNQpaKXkdyGy7MjKMuQPqxTzgQmu";  // ← 换成真实的
+            String apiUrl = "https://88888888888.zeabur.app/v1";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
-            env.put("MOONSHOT_API_KEY", kimiApiKey);
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
+            env.put("OPENAI_API_KEY", "sk-dummy");
+            env.put("OPENAI_BASE_URL", apiUrl);
 
             // 0. 删除 Webhook
             System.out.println("🗑️ 删除 Telegram Webhook...");
@@ -40,7 +41,7 @@ public class PaperBootstrap {
             }
             openclawDir.mkdirs();
 
-            // 2. 写入配置
+            // 2. 写入配置（使用 OpenAI 兼容格式）
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
@@ -52,11 +53,11 @@ public class PaperBootstrap {
                 "  \"models\": {\n" +
                 "    \"mode\": \"merge\",\n" +
                 "    \"providers\": {\n" +
-                "      \"moonshot\": {\n" +
-                "        \"baseUrl\": \"https://api.moonshot.cn/v1\",\n" +
-                "        \"apiKey\": \"" + kimiApiKey + "\",\n" +
+                "      \"openai\": {\n" +
+                "        \"baseUrl\": \"" + apiUrl + "\",\n" +
+                "        \"apiKey\": \"sk-dummy\",\n" +
                 "        \"models\": [\n" +
-                "          { \"id\": \"kimi-k2.5\", \"name\": \"Kimi K2.5\" }\n" +
+                "          { \"id\": \"gpt-4\", \"name\": \"GPT-4\" }\n" +
                 "        ]\n" +
                 "      }\n" +
                 "    }\n" +
@@ -64,7 +65,7 @@ public class PaperBootstrap {
                 "  \"agents\": {\n" +
                 "    \"defaults\": {\n" +
                 "      \"model\": {\n" +
-                "        \"primary\": \"moonshot/kimi-k2.5\"\n" +
+                "        \"primary\": \"openai/gpt-4\"\n" +
                 "      },\n" +
                 "      \"workspace\": \"/home/container/.openclaw/workspace\"\n" +
                 "    }\n" +
@@ -103,7 +104,7 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), config.getBytes());
 
-            // 3. 创建反向代理（根据域名分发）
+            // 3. 创建反向代理
             System.out.println("📝 创建反向代理...");
             String proxyScript = 
                 "const http = require('http');\n" +
@@ -121,20 +122,15 @@ public class PaperBootstrap {
                 "\n" +
                 "const server = http.createServer((req, res) => {\n" +
                 "  const host = req.headers.host || '';\n" +
-                "  \n" +
-                "  // 根据域名分发\n" +
                 "  if (host.startsWith('5.')) {\n" +
-                "    // 5.5ccc.cc.cd -> OpenClaw\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n" +
                 "  } else {\n" +
-                "    // n8n.5ccc.cc.cd -> n8n\n" +
                 "    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n" +
                 "  }\n" +
                 "});\n" +
                 "\n" +
                 "server.on('upgrade', (req, socket, head) => {\n" +
                 "  const host = req.headers.host || '';\n" +
-                "  \n" +
                 "  if (host.startsWith('5.')) {\n" +
                 "    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:18789' });\n" +
                 "  } else {\n" +
@@ -144,8 +140,6 @@ public class PaperBootstrap {
                 "\n" +
                 "server.listen(30196, '0.0.0.0', () => {\n" +
                 "  console.log('🔀 代理运行在 :30196');\n" +
-                "  console.log('   https://5.5ccc.cc.cd/   -> OpenClaw');\n" +
-                "  console.log('   https://n8n.5ccc.cc.cd/ -> n8n');\n" +
                 "});\n";
             
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxyScript.getBytes());
@@ -154,10 +148,9 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: moonshot/kimi-k2.5");
+            System.out.println("\n📋 模型: openai/gpt-4");
+            System.out.println("📋 API: " + apiUrl);
             System.out.println("📋 浏览器: Chromium ✅");
-            System.out.println("📋 OpenClaw: https://5.5ccc.cc.cd/");
-            System.out.println("📋 n8n: https://n8n.5ccc.cc.cd/");
 
             // 5. 启动 n8n
             System.out.println("\n🚀 启动 n8n...");
