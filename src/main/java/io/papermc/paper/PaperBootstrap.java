@@ -13,10 +13,10 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            // ===== 你的 G4F =====
-            String apiKey = "258364353y";
-            String baseUrl = "https://888888888888.zeabur.app/v1";
-            // ====================
+            // ===== 11个8 + gpt-4o-mini =====
+            String apiKey = "sk-123456";
+            String baseUrl = "https://88888888888.zeabur.app/v1";
+            // ===============================
             
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
@@ -51,7 +51,7 @@ public class PaperBootstrap {
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
-            sb.append("        \"primary\": \"openai/gpt-4o\"\n");  // ← 改这里！
+            sb.append("        \"primary\": \"openai/gpt-4o-mini\"\n");
             sb.append("      },\n");
             sb.append("      \"workspace\": \"/home/container/.openclaw/workspace\"\n");
             sb.append("    }\n");
@@ -121,7 +121,7 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: openai/gpt-4o");
+            System.out.println("\n📋 模型: openai/gpt-4o-mini");
             System.out.println("📋 API: " + baseUrl);
 
             System.out.println("\n🚀 启动 n8n...");
