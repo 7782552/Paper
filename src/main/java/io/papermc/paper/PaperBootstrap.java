@@ -15,7 +15,7 @@ public class PaperBootstrap {
             
             // ===== 你的 G4F =====
             String apiKey = "848494156";
-            String baseUrl = "https://88888888888.zeabur.app/v1";
+            String baseUrl = "https://888888888888.zeabur.app/v1";
             // ====================
             
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
@@ -52,7 +52,7 @@ public class PaperBootstrap {
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
-            sb.append("        \"primary\": \"openai/gpt-4\"\n");
+            sb.append("        \"primary\": \"openai/gpt-4o-mini\"\n");
             sb.append("      },\n");
             sb.append("      \"workspace\": \"/home/container/.openclaw/workspace\"\n");
             sb.append("    }\n");
