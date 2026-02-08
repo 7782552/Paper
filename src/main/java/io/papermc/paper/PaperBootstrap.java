@@ -6,7 +6,7 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 配置中 (直接修改源码版)...");
+        System.out.println("🦞 [OpenClaw] 配置中 (深度修改版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -14,6 +14,7 @@ public class PaperBootstrap {
             
             String apiKey = "sk-g4f-token-any";
             String zeaburUrl = "https://888888888888.zeabur.app/v1";
+            String zeaburHost = "888888888888.zeabur.app";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
@@ -25,28 +26,45 @@ public class PaperBootstrap {
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
 
-            // ★★★ 直接修改 OpenClaw 源码，替换 OpenAI API 地址 ★★★
-            System.out.println("📝 修改 OpenClaw 源码...");
-            String[] filesToPatch = {
-                baseDir + "/node_modules/openclaw/dist/extensionAPI.js",
-                baseDir + "/node_modules/openclaw/dist/loader-BAZoAqqR.js",
-                baseDir + "/node_modules/openclaw/dist/gateway-cli-c_8Yf5s6.js",
-                baseDir + "/node_modules/openclaw/dist/gateway-cli-D_8miTjF.js"
-            };
+            // ★★★ 查找所有包含 api.openai.com 的文件并修改 ★★★
+            System.out.println("📝 查找并修改所有 OpenAI API 地址...");
             
+            ProcessBuilder findPb = new ProcessBuilder("sh", "-c",
+                "grep -rl 'api.openai.com' " + baseDir + "/node_modules/openai/ " + 
+                baseDir + "/node_modules/openclaw/ 2>/dev/null"
+            );
+            findPb.directory(new File(baseDir));
+            Process findProc = findPb.start();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(findProc.getInputStream()));
+            List<String> filesToPatch = new ArrayList<>();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                filesToPatch.add(line.trim());
+            }
+            findProc.waitFor();
+            
+            System.out.println("  找到 " + filesToPatch.size() + " 个文件需要修改");
+            
+            int count = 0;
             for (String filePath : filesToPatch) {
-                File file = new File(filePath);
-                if (file.exists()) {
-                    String content = new String(Files.readAllBytes(file.toPath()));
-                    // 替换所有 OpenAI API 地址
-                    String modified = content
-                        .replace("https://api.openai.com/v1", zeaburUrl)
-                        .replace("https://api.openai.com", zeaburUrl.replace("/v1", ""))
-                        .replace("api.openai.com", "888888888888.zeabur.app");
-                    Files.write(file.toPath(), modified.getBytes());
-                    System.out.println("  ✓ 已修改: " + filePath);
+                try {
+                    File file = new File(filePath);
+                    if (file.exists() && file.isFile() && file.canWrite()) {
+                        String content = new String(Files.readAllBytes(file.toPath()));
+                        String modified = content
+                            .replace("https://api.openai.com/v1", zeaburUrl)
+                            .replace("https://api.openai.com", zeaburUrl.replace("/v1", ""))
+                            .replace("api.openai.com", zeaburHost);
+                        if (!content.equals(modified)) {
+                            Files.write(file.toPath(), modified.getBytes());
+                            count++;
+                        }
+                    }
+                } catch (Exception e) {
+                    // 忽略无法修改的文件
                 }
             }
+            System.out.println("  ✓ 已修改 " + count + " 个文件");
 
             // 删除 Webhook
             try {
