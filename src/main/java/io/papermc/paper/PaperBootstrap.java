@@ -6,7 +6,7 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 配置中 (查找内置 SDK 版)...");
+        System.out.println("🦞 [OpenClaw] 配置中 (修改 pi-ai SDK 版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -14,6 +14,7 @@ public class PaperBootstrap {
             
             String apiKey = "sk-g4f-token-any";
             String zeaburUrl = "https://888888888888.zeabur.app/v1";
+            String zeaburHost = "888888888888.zeabur.app";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
@@ -25,66 +26,32 @@ public class PaperBootstrap {
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
 
-            // ★★★ 查找所有包含 openai 的目录 ★★★
-            System.out.println("📝 查找 OpenAI SDK 位置...");
-            ProcessBuilder findPb = new ProcessBuilder("sh", "-c",
-                "find " + baseDir + "/node_modules -type d -name 'openai' 2>/dev/null"
-            );
-            findPb.inheritIO();
-            findPb.start().waitFor();
-
-            // ★★★ 在整个 node_modules 中搜索 api.openai.com ★★★
-            System.out.println("\n📝 搜索 api.openai.com...");
-            ProcessBuilder grepPb = new ProcessBuilder("sh", "-c",
-                "grep -rl 'api.openai.com' " + baseDir + "/node_modules/ 2>/dev/null | head -20"
-            );
-            grepPb.inheritIO();
-            grepPb.start().waitFor();
-
-            // ★★★ 搜索 OpenClaw 内部的 OpenAI 相关代码 ★★★
-            System.out.println("\n📝 搜索 OpenClaw 中的 OpenAI 配置...");
-            ProcessBuilder grep2Pb = new ProcessBuilder("sh", "-c",
-                "grep -rn 'baseURL\\|api.openai' " + baseDir + "/node_modules/openclaw/dist/*.js 2>/dev/null | grep -v node_modules | head -30"
-            );
-            grep2Pb.inheritIO();
-            grep2Pb.start().waitFor();
-
-            // ★★★ 修改 OpenClaw 的大文件 ★★★
-            System.out.println("\n📝 修改 OpenClaw 核心文件...");
-            String[] bigFiles = {
-                baseDir + "/node_modules/openclaw/dist/extensionAPI.js",
-                baseDir + "/node_modules/openclaw/dist/loader-BAZoAqqR.js",
-                baseDir + "/node_modules/openclaw/dist/gateway-cli-c_8Yf5s6.js",
-                baseDir + "/node_modules/openclaw/dist/gateway-cli-D_8miTjF.js",
-                baseDir + "/node_modules/openclaw/dist/reply-DpTyb3Hh.js",
-                baseDir + "/node_modules/openclaw/dist/index.js"
+            // ★★★ 修改所有找到的 OpenAI SDK 文件 ★★★
+            System.out.println("📝 修改所有 OpenAI SDK 文件...");
+            
+            String[] sdkPaths = {
+                // pi-ai 的 OpenAI SDK
+                baseDir + "/node_modules/@mariozechner/pi-ai/node_modules/openai",
+                // langchain 的 OpenAI SDK
+                baseDir + "/node_modules/langchain/node_modules/@langchain/openai/node_modules/openai",
+                baseDir + "/node_modules/@langchain/openai/node_modules/openai",
+                // n8n 的 OpenAI SDK
+                baseDir + "/node_modules/@n8n/n8n-nodes-langchain/node_modules/openai",
+                // openclaw 内置的
+                baseDir + "/node_modules/openclaw/extensions/memory-lancedb/node_modules/openai"
             };
 
-            int modified = 0;
-            for (String filePath : bigFiles) {
-                File file = new File(filePath);
-                if (file.exists()) {
-                    try {
-                        String content = new String(Files.readAllBytes(file.toPath()));
-                        if (content.contains("api.openai.com")) {
-                            String newContent = content
-                                .replace("https://api.openai.com/v1", zeaburUrl)
-                                .replace("https://api.openai.com", zeaburUrl.replace("/v1", ""))
-                                .replace("api.openai.com", "888888888888.zeabur.app");
-                            Files.write(file.toPath(), newContent.getBytes());
-                            modified++;
-                            System.out.println("  ✓ 已修改: " + file.getName());
-                        } else {
-                            System.out.println("  - 无需修改: " + file.getName());
-                        }
-                    } catch (Exception e) {
-                        System.out.println("  ✗ 错误: " + file.getName() + " - " + e.getMessage());
-                    }
-                } else {
-                    System.out.println("  - 不存在: " + file.getName());
+            int totalModified = 0;
+            for (String sdkPath : sdkPaths) {
+                File sdkDir = new File(sdkPath);
+                if (sdkDir.exists()) {
+                    System.out.println("  处理: " + sdkPath.substring(baseDir.length()));
+                    int count = modifyOpenAISDK(sdkDir, zeaburUrl, zeaburHost);
+                    totalModified += count;
+                    System.out.println("    ✓ 修改了 " + count + " 个文件");
                 }
             }
-            System.out.println("  共修改 " + modified + " 个文件");
+            System.out.println("  总共修改 " + totalModified + " 个文件");
 
             // 删除 Webhook
             try {
@@ -164,6 +131,40 @@ public class PaperBootstrap {
             px.start().waitFor();
 
         } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    static int modifyOpenAISDK(File dir, String zeaburUrl, String zeaburHost) {
+        int count = 0;
+        File[] files = dir.listFiles();
+        if (files == null) return 0;
+        
+        for (File file : files) {
+            if (file.isDirectory()) {
+                count += modifyOpenAISDK(file, zeaburUrl, zeaburHost);
+            } else {
+                String name = file.getName();
+                if (name.endsWith(".js") || name.endsWith(".mjs") || name.endsWith(".ts") || 
+                    name.endsWith(".cjs") || name.endsWith(".d.ts") || name.endsWith(".d.mts")) {
+                    try {
+                        if (file.length() > 5 * 1024 * 1024) continue;
+                        
+                        String content = new String(Files.readAllBytes(file.toPath()));
+                        
+                        if (content.contains("api.openai.com")) {
+                            String newContent = content
+                                .replace("https://api.openai.com/v1", zeaburUrl)
+                                .replace("https://api.openai.com", zeaburUrl.replace("/v1", ""))
+                                .replace("api.openai.com", zeaburHost);
+                            Files.write(file.toPath(), newContent.getBytes());
+                            count++;
+                        }
+                    } catch (Exception e) {
+                        // 忽略
+                    }
+                }
+            }
+        }
+        return count;
     }
 
     static void deleteDirectory(File dir) {
