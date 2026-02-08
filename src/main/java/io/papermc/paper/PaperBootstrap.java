@@ -7,7 +7,7 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 正在配置 (自定义URL版)...");
+        System.out.println("🦞 [OpenClaw] 正在配置 (调试版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -24,9 +24,17 @@ public class PaperBootstrap {
             Map<String, String> env = new HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
+            
+            // ★★★ 尝试所有可能的环境变量 ★★★
             env.put("OPENAI_API_KEY", apiKey);
             env.put("OPENAI_BASE_URL", baseUrl);
             env.put("OPENAI_API_BASE", baseUrl);
+            env.put("OPENCLAW_OPENAI_API_KEY", apiKey);
+            env.put("OPENCLAW_OPENAI_BASE_URL", baseUrl);
+            env.put("OPENCLAW_MODEL_BASE_URL", baseUrl);
+            env.put("OPENCLAW_API_KEY", apiKey);
+            env.put("OPENCLAW_BASE_URL", baseUrl);
+            
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
@@ -39,34 +47,40 @@ public class PaperBootstrap {
                 conn.getResponseCode();
             } catch (Exception e) {}
 
-            System.out.println("🧹 删除旧配置...");
+            // ★★★ 先运行 openclaw config --help 查看帮助 ★★★
+            System.out.println("\n📋 查看 OpenClaw 配置帮助...");
+            ProcessBuilder helpPb = new ProcessBuilder(nodeBin, ocBin, "config", "--help");
+            helpPb.environment().putAll(env);
+            helpPb.directory(new File(baseDir));
+            helpPb.inheritIO();
+            Process helpProc = helpPb.start();
+            helpProc.waitFor();
+            
+            System.out.println("\n📋 查看 OpenClaw 支持的模型...");
+            ProcessBuilder modelsPb = new ProcessBuilder(nodeBin, ocBin, "models");
+            modelsPb.environment().putAll(env);
+            modelsPb.directory(new File(baseDir));
+            modelsPb.inheritIO();
+            Process modelsProc = modelsPb.start();
+            modelsProc.waitFor();
+
+            System.out.println("\n🧹 删除旧配置...");
             File openclawDir = new File(baseDir + "/.openclaw");
             if (openclawDir.exists()) {
                 deleteDirectory(openclawDir);
             }
             openclawDir.mkdirs();
 
-            System.out.println("📝 写入配置...");
+            System.out.println("📝 写入最简配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
+            // ★★★ 最简配置，不加任何额外字段 ★★★
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
-            
-            // ★★★ 尝试使用 models 配置定义自定义模型 ★★★
-            sb.append("  \"models\": {\n");
-            sb.append("    \"my-gpt\": {\n");
-            sb.append("      \"provider\": \"openai\",\n");
-            sb.append("      \"model\": \"gpt-4o-mini\",\n");
-            sb.append("      \"baseUrl\": \"").append(baseUrl).append("\",\n");
-            sb.append("      \"apiKey\": \"").append(apiKey).append("\"\n");
-            sb.append("    }\n");
-            sb.append("  },\n");
-            
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
-            // ★★★ 引用自定义模型 ★★★
-            sb.append("        \"primary\": \"my-gpt\"\n");
+            sb.append("        \"primary\": \"openai/gpt-4o-mini\"\n");
             sb.append("      },\n");
             sb.append("      \"workspace\": \"/home/container/.openclaw/workspace\"\n");
             sb.append("    }\n");
@@ -145,8 +159,8 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: my-gpt (gpt-4o-mini)");
-            System.out.println("📋 API: " + baseUrl);
+            System.out.println("\n📋 模型: openai/gpt-4o-mini");
+            System.out.println("📋 API: " + baseUrl + " (通过环境变量)");
 
             System.out.println("\n🚀 启动 n8n...");
             ProcessBuilder n8nPb = new ProcessBuilder(
