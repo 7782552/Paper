@@ -7,7 +7,7 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 正在配置 (环境变量版)...");
+        System.out.println("🦞 [OpenClaw] 正在配置 (兼容API版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -24,12 +24,9 @@ public class PaperBootstrap {
             Map<String, String> env = new HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
-            
-            // ★★★ 关键：通过环境变量设置 API ★★★
             env.put("OPENAI_API_KEY", apiKey);
             env.put("OPENAI_BASE_URL", baseUrl);
             env.put("OPENAI_API_BASE", baseUrl);
-            
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
@@ -40,9 +37,7 @@ public class PaperBootstrap {
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.getResponseCode();
-            } catch (Exception e) {
-                // 忽略
-            }
+            } catch (Exception e) {}
 
             System.out.println("🧹 删除旧配置...");
             File openclawDir = new File(baseDir + "/.openclaw");
@@ -54,13 +49,19 @@ public class PaperBootstrap {
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
-            // ★★★ 不使用 providers，只用基本配置 ★★★
+            // ★★★ 使用 openai-compatible 并指定 baseUrl ★★★
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
-            sb.append("        \"primary\": \"openai/gpt-4o-mini\"\n");
+            // ★★★ 关键修改：使用完整的模型配置对象 ★★★
+            sb.append("        \"primary\": {\n");
+            sb.append("          \"provider\": \"openai-compatible\",\n");
+            sb.append("          \"model\": \"gpt-4o-mini\",\n");
+            sb.append("          \"baseUrl\": \"").append(baseUrl).append("\",\n");
+            sb.append("          \"apiKey\": \"").append(apiKey).append("\"\n");
+            sb.append("        }\n");
             sb.append("      },\n");
             sb.append("      \"workspace\": \"/home/container/.openclaw/workspace\"\n");
             sb.append("    }\n");
@@ -79,7 +80,6 @@ public class PaperBootstrap {
             sb.append("      \"allowFrom\": [\"*\"]\n");
             sb.append("    }\n");
             sb.append("  },\n");
-            // ★★★ 添加 gateway.mode = local ★★★
             sb.append("  \"gateway\": {\n");
             sb.append("    \"mode\": \"local\",\n");
             sb.append("    \"port\": 18789,\n");
@@ -100,7 +100,6 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), sb.toString().getBytes());
 
-            // ★★★ 写入 .env 文件 ★★★
             System.out.println("📝 写入 .env 文件...");
             StringBuilder envFile = new StringBuilder();
             envFile.append("OPENAI_API_KEY=").append(apiKey).append("\n");
@@ -141,7 +140,7 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: openai/gpt-4o-mini");
+            System.out.println("\n📋 模型: openai-compatible/gpt-4o-mini");
             System.out.println("📋 API: " + baseUrl);
 
             System.out.println("\n🚀 启动 n8n...");
@@ -169,7 +168,6 @@ public class PaperBootstrap {
                 "--token", gatewayToken,
                 "--verbose"
             );
-            // ★★★ 确保 Gateway 也有环境变量 ★★★
             gatewayPb.environment().putAll(env);
             gatewayPb.directory(new File(baseDir));
             gatewayPb.inheritIO();
