@@ -121,7 +121,7 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: openai/gpt-4o-mini");
+            System.out.println("\n📋 模型: openai/gpt-4o");
             System.out.println("📋 API: " + baseUrl);
 
             System.out.println("\n🚀 启动 n8n...");
