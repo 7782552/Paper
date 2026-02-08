@@ -14,7 +14,7 @@ public class PaperBootstrap {
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
             // ===== G4F 配置 =====
-            String g4fApiKey = "你在n8n里用的那个API_Key";  // ← 填真实的
+            String g4fApiKey = "5494914654654";  // ← 填真实的
             String g4fBaseUrl = "https://88888888888.zeabur.app/v1";
             // ====================
             
