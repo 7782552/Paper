@@ -7,56 +7,51 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 正在配置 (完整修复版)...");
+        System.out.println("🦞 [OpenClaw] 终极配置 (强制 .env 版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            // ===== 核心配置 =====
-            String apiKey = "sk-g4f-token-any"; // G4F 通常不校验 Key，但必须有值
-            String baseUrl = "https://888888888888.zeabur.app/v1"; // 你的 Zeabur 地址
-            // ===================
+            // ===== ⚠️ 请务必确认这个地址是真实可用的 ⚠️ =====
+            // 如果这个地址是瞎编的，你一定会收到 401 或连接错误
+            String baseUrl = "https://888888888888.zeabur.app/v1"; 
+            String apiKey = "sk-no-key-required"; 
+            // =============================================
             
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
+            // 1. 准备环境变量 Map
             Map<String, String> env = new HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
-            
-            // --- 修复点：通过环境变量强制覆盖 OpenAI 地址 ---
-            // 这样不需要在 JSON 里写 providers，既不会报错，又能连上 Zeabur
             env.put("OPENAI_API_KEY", apiKey);
             env.put("OPENAI_BASE_URL", baseUrl); 
-            env.put("OPENAI_API_BASE", baseUrl); // 兼容性冗余配置
-            // ---------------------------------------------
-            
+            env.put("OPENAI_API_BASE", baseUrl); // 双重锁定
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
 
-            System.out.println("🗑️ 删除 Telegram Webhook...");
-            try {
-                URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.getResponseCode();
-            } catch (Exception e) {
-                // 忽略网络错误，防止断网时无法启动
-            }
+            // 2. 暴力写入 .env 文件 (这是新加的，防止环境变量不生效)
+            System.out.println("📝 强制写入 .env 文件...");
+            File envFile = new File(baseDir + "/.env");
+            StringBuilder envContent = new StringBuilder();
+            envContent.append("OPENAI_API_KEY=").append(apiKey).append("\n");
+            envContent.append("OPENAI_BASE_URL=").append(baseUrl).append("\n");
+            envContent.append("OPENAI_API_BASE=").append(baseUrl).append("\n");
+            envContent.append("OPENCLAW_GATEWAY_TOKEN=").append(gatewayToken).append("\n");
+            Files.write(envFile.toPath(), envContent.toString().getBytes());
 
-            System.out.println("🧹 删除旧配置...");
+            System.out.println("🧹 删除旧配置目录...");
             File openclawDir = new File(baseDir + "/.openclaw");
-            if (openclawDir.exists()) {
-                deleteDirectory(openclawDir);
-            }
+            if (openclawDir.exists()) { deleteDirectory(openclawDir); }
             openclawDir.mkdirs();
 
-            System.out.println("📝 写入配置...");
+            System.out.println("📝 写入 openclaw.json...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
-            // --- 这里完全保留你原始的 JSON 结构，移除了报错的 providers ---
+            // 保持这个精简的 JSON，不要加 providers
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
             sb.append("  \"agents\": {\n");
@@ -67,48 +62,27 @@ public class PaperBootstrap {
             sb.append("      \"workspace\": \"/home/container/.openclaw/workspace\"\n");
             sb.append("    }\n");
             sb.append("  },\n");
-            sb.append("  \"browser\": {\n");
-            sb.append("    \"enabled\": true,\n");
-            sb.append("    \"headless\": true\n");
-            sb.append("  },\n");
             sb.append("  \"channels\": {\n");
             sb.append("    \"telegram\": {\n");
-            sb.append("      \"dmPolicy\": \"open\",\n");
             sb.append("      \"botToken\": \"").append(telegramToken).append("\",\n");
-            sb.append("      \"groupPolicy\": \"open\",\n");
-            sb.append("      \"streamMode\": \"partial\",\n");
+            sb.append("      \"dmPolicy\": \"open\",\n");
             sb.append("      \"allowFrom\": [\"*\"]\n");
             sb.append("    }\n");
             sb.append("  },\n");
             sb.append("  \"gateway\": {\n");
             sb.append("    \"port\": 18789,\n");
-            sb.append("    \"mode\": \"local\",\n");
-            sb.append("    \"bind\": \"lan\",\n");
-            sb.append("    \"auth\": {\n");
-            sb.append("      \"mode\": \"token\",\n");
-            sb.append("      \"token\": \"").append(gatewayToken).append("\"\n");
-            sb.append("    }\n");
-            sb.append("  },\n");
-            sb.append("  \"plugins\": {\n");
-            sb.append("    \"entries\": {\n");
-            sb.append("      \"telegram\": {\n");
-            sb.append("        \"enabled\": true\n");
-            sb.append("      }\n");
-            sb.append("    }\n");
+            sb.append("    \"auth\": { \"mode\": \"token\", \"token\": \"").append(gatewayToken).append("\" }\n");
             sb.append("  }\n");
             sb.append("}");
-            
             Files.write(configFile.toPath(), sb.toString().getBytes());
 
             System.out.println("📝 创建反向代理...");
-            // --- 完全保留你原始的 Proxy 逻辑 ---
             StringBuilder proxy = new StringBuilder();
             proxy.append("const http = require('http');\n");
             proxy.append("const httpProxy = require('http-proxy');\n");
             proxy.append("const proxy = httpProxy.createProxyServer({ ws: true, xfwd: true });\n");
             proxy.append("proxy.on('error', (err, req, res) => {\n");
             proxy.append("  console.error('Proxy:', err.message);\n");
-            proxy.append("  if (res && res.writeHead) { res.writeHead(503); res.end('Service starting...'); }\n");
             proxy.append("});\n");
             proxy.append("const server = http.createServer((req, res) => {\n");
             proxy.append("  const host = req.headers.host || '';\n");
@@ -127,74 +101,32 @@ public class PaperBootstrap {
             proxy.append("  }\n");
             proxy.append("});\n");
             proxy.append("server.listen(30196, '0.0.0.0', () => console.log('Proxy on :30196'));\n");
-            
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxy.toString().getBytes());
 
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: openai/gpt-4o-mini");
-            System.out.println("📋 API: " + baseUrl);
-
             System.out.println("\n🚀 启动 n8n...");
-            // --- 完全保留你原始的 n8n 启动参数 ---
-            ProcessBuilder n8nPb = new ProcessBuilder(
-                nodeBin, "--max-old-space-size=2048",
-                baseDir + "/node_modules/.bin/n8n", "start"
-            );
+            ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, "--max-old-space-size=2048", baseDir + "/node_modules/.bin/n8n", "start");
             n8nPb.environment().putAll(env);
-            n8nPb.environment().put("N8N_PORT", "5678");
-            n8nPb.environment().put("N8N_HOST", "0.0.0.0");
-            n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
-            n8nPb.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
-            n8nPb.environment().put("N8N_DIAGNOSTICS_ENABLED", "false");
-            n8nPb.environment().put("N8N_VERSION_NOTIFICATIONS_ENABLED", "false");
-            n8nPb.environment().put("N8N_HIRING_BANNER_ENABLED", "false");
-            n8nPb.directory(new File(baseDir));
             n8nPb.inheritIO();
             n8nPb.start();
 
             System.out.println("🚀 启动 Gateway...");
-            // --- 完全保留你原始的 Gateway 启动参数 ---
-            ProcessBuilder gatewayPb = new ProcessBuilder(
-                nodeBin, ocBin, "gateway",
-                "--port", "18789",
-                "--bind", "lan",
-                "--token", gatewayToken,
-                "--verbose"
-            );
+            ProcessBuilder gatewayPb = new ProcessBuilder(nodeBin, ocBin, "gateway", "--port", "18789", "--bind", "lan", "--token", gatewayToken);
             gatewayPb.environment().putAll(env);
-            gatewayPb.directory(new File(baseDir));
             gatewayPb.inheritIO();
             gatewayPb.start();
 
-            System.out.println("\n⏳ 等待服务启动...");
-            Thread.sleep(15000);
+            Thread.sleep(5000);
+            new ProcessBuilder(nodeBin, baseDir + "/proxy.js").inheritIO().start().waitFor();
 
-            System.out.println("\n🚀 启动反向代理...");
-            // --- 完全保留你原始的 Proxy 启动参数 ---
-            ProcessBuilder proxyPb = new ProcessBuilder(nodeBin, baseDir + "/proxy.js");
-            proxyPb.environment().putAll(env);
-            proxyPb.directory(new File(baseDir));
-            proxyPb.inheritIO();
-            proxyPb.start().waitFor();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     static void deleteDirectory(File dir) {
         File[] files = dir.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory()) {
-                    deleteDirectory(file);
-                } else {
-                    file.delete();
-                }
-            }
-        }
+        if (files != null) { for (File f : files) { if (f.isDirectory()) deleteDirectory(f); else f.delete(); } }
         dir.delete();
     }
 }
