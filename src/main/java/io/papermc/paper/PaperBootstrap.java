@@ -7,17 +7,14 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 正在配置 (调试版v2)...");
+        System.out.println("🦞 [OpenClaw] 配置中...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            // ===== 核心配置 =====
             String apiKey = "sk-g4f-token-any";
             String baseUrl = "https://888888888888.zeabur.app/v1";
-            // ===================
-            
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
@@ -26,12 +23,9 @@ public class PaperBootstrap {
             env.put("HOME", baseDir);
             env.put("OPENAI_API_KEY", apiKey);
             env.put("OPENAI_BASE_URL", baseUrl);
-            env.put("OPENAI_API_BASE", baseUrl);
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
-            env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
 
-            System.out.println("🗑️ 删除 Telegram Webhook...");
             try {
                 URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -39,72 +33,35 @@ public class PaperBootstrap {
                 conn.getResponseCode();
             } catch (Exception e) {}
 
-            // ★★★ 先删除旧配置 ★★★
-            System.out.println("\n🧹 删除旧配置...");
             File openclawDir = new File(baseDir + "/.openclaw");
-            if (openclawDir.exists()) {
-                deleteDirectory(openclawDir);
-            }
+            if (openclawDir.exists()) deleteDirectory(openclawDir);
             openclawDir.mkdirs();
             new File(baseDir + "/.openclaw/workspace").mkdirs();
+            Runtime.getRuntime().exec("chmod 700 " + baseDir + "/.openclaw").waitFor();
 
-            // ★★★ 写入空配置先 ★★★
-            File configFile = new File(baseDir + "/.openclaw/openclaw.json");
-            Files.write(configFile.toPath(), "{}".getBytes());
-
-            // ★★★ 运行调试命令 ★★★
-            System.out.println("\n📋 查看 OpenClaw 版本和帮助...");
-            
-            ProcessBuilder versionPb = new ProcessBuilder(nodeBin, ocBin, "--version");
-            versionPb.environment().putAll(env);
-            versionPb.directory(new File(baseDir));
-            versionPb.inheritIO();
-            versionPb.start().waitFor();
-
-            System.out.println("\n📋 运行 openclaw doctor 查看配置要求...");
-            ProcessBuilder doctorPb = new ProcessBuilder(nodeBin, ocBin, "doctor");
-            doctorPb.environment().putAll(env);
-            doctorPb.directory(new File(baseDir));
-            doctorPb.inheritIO();
-            doctorPb.start().waitFor();
-
-            System.out.println("\n📋 查看 openclaw config get 所有配置...");
-            ProcessBuilder configGetPb = new ProcessBuilder(nodeBin, ocBin, "config", "get");
-            configGetPb.environment().putAll(env);
-            configGetPb.directory(new File(baseDir));
-            configGetPb.inheritIO();
-            configGetPb.start().waitFor();
-
-            System.out.println("\n📋 查看主帮助...");
-            ProcessBuilder helpPb = new ProcessBuilder(nodeBin, ocBin, "--help");
-            helpPb.environment().putAll(env);
-            helpPb.directory(new File(baseDir));
-            helpPb.inheritIO();
-            helpPb.start().waitFor();
-
-            System.out.println("\n📝 写入正式配置...");
-            
+            // ★★★ 关键配置：models.openai 设置自定义 API ★★★
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
+            sb.append("  \"models\": {\n");
+            sb.append("    \"openai\": {\n");
+            sb.append("      \"apiKey\": \"").append(apiKey).append("\",\n");
+            sb.append("      \"baseUrl\": \"").append(baseUrl).append("\"\n");
+            sb.append("    }\n");
+            sb.append("  },\n");
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
             sb.append("        \"primary\": \"openai/gpt-4o-mini\"\n");
             sb.append("      },\n");
-            sb.append("      \"workspace\": \"/home/container/.openclaw/workspace\"\n");
+            sb.append("      \"workspace\": \"").append(baseDir).append("/.openclaw/workspace\"\n");
             sb.append("    }\n");
-            sb.append("  },\n");
-            sb.append("  \"browser\": {\n");
-            sb.append("    \"enabled\": true,\n");
-            sb.append("    \"headless\": true\n");
             sb.append("  },\n");
             sb.append("  \"channels\": {\n");
             sb.append("    \"telegram\": {\n");
             sb.append("      \"enabled\": true,\n");
-            sb.append("      \"dmPolicy\": \"open\",\n");
             sb.append("      \"botToken\": \"").append(telegramToken).append("\",\n");
+            sb.append("      \"dmPolicy\": \"open\",\n");
             sb.append("      \"groupPolicy\": \"open\",\n");
-            sb.append("      \"streamMode\": \"partial\",\n");
             sb.append("      \"allowFrom\": [\"*\"]\n");
             sb.append("    }\n");
             sb.append("  },\n");
@@ -112,120 +69,53 @@ public class PaperBootstrap {
             sb.append("    \"mode\": \"local\",\n");
             sb.append("    \"port\": 18789,\n");
             sb.append("    \"bind\": \"lan\",\n");
-            sb.append("    \"auth\": {\n");
-            sb.append("      \"mode\": \"token\",\n");
-            sb.append("      \"token\": \"").append(gatewayToken).append("\"\n");
-            sb.append("    }\n");
-            sb.append("  },\n");
-            sb.append("  \"plugins\": {\n");
-            sb.append("    \"entries\": {\n");
-            sb.append("      \"telegram\": {\n");
-            sb.append("        \"enabled\": true\n");
-            sb.append("      }\n");
-            sb.append("    }\n");
+            sb.append("    \"auth\": { \"mode\": \"token\", \"token\": \"").append(gatewayToken).append("\" }\n");
             sb.append("  }\n");
             sb.append("}");
             
-            Files.write(configFile.toPath(), sb.toString().getBytes());
+            Files.write(new File(baseDir + "/.openclaw/openclaw.json").toPath(), sb.toString().getBytes());
 
-            System.out.println("📝 写入 .env 文件...");
-            StringBuilder envFile = new StringBuilder();
-            envFile.append("OPENAI_API_KEY=").append(apiKey).append("\n");
-            envFile.append("OPENAI_BASE_URL=").append(baseUrl).append("\n");
-            envFile.append("OPENAI_API_BASE=").append(baseUrl).append("\n");
-            Files.write(new File(baseDir + "/.openclaw/.env").toPath(), envFile.toString().getBytes());
-            Files.write(new File(baseDir + "/.env").toPath(), envFile.toString().getBytes());
-
-            System.out.println("📝 创建反向代理...");
             StringBuilder proxy = new StringBuilder();
-            proxy.append("const http = require('http');\n");
-            proxy.append("const httpProxy = require('http-proxy');\n");
-            proxy.append("const proxy = httpProxy.createProxyServer({ ws: true, xfwd: true });\n");
-            proxy.append("proxy.on('error', (err, req, res) => {\n");
-            proxy.append("  console.error('Proxy:', err.message);\n");
-            proxy.append("  if (res && res.writeHead) { res.writeHead(503); res.end('Service starting...'); }\n");
-            proxy.append("});\n");
-            proxy.append("const server = http.createServer((req, res) => {\n");
-            proxy.append("  const host = req.headers.host || '';\n");
-            proxy.append("  if (host.startsWith('5.')) {\n");
-            proxy.append("    proxy.web(req, res, { target: 'http://127.0.0.1:18789' });\n");
-            proxy.append("  } else {\n");
-            proxy.append("    proxy.web(req, res, { target: 'http://127.0.0.1:5678' });\n");
-            proxy.append("  }\n");
-            proxy.append("});\n");
-            proxy.append("server.on('upgrade', (req, socket, head) => {\n");
-            proxy.append("  const host = req.headers.host || '';\n");
-            proxy.append("  if (host.startsWith('5.')) {\n");
-            proxy.append("    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:18789' });\n");
-            proxy.append("  } else {\n");
-            proxy.append("    proxy.ws(req, socket, head, { target: 'ws://127.0.0.1:5678' });\n");
-            proxy.append("  }\n");
-            proxy.append("});\n");
-            proxy.append("server.listen(30196, '0.0.0.0', () => console.log('Proxy on :30196'));\n");
-            
+            proxy.append("const http=require('http'),httpProxy=require('http-proxy');\n");
+            proxy.append("const p=httpProxy.createProxyServer({ws:true});\n");
+            proxy.append("p.on('error',(e,q,r)=>{if(r.writeHead){r.writeHead(503);r.end();}});\n");
+            proxy.append("http.createServer((q,r)=>p.web(q,r,{target:q.headers.host?.startsWith('5.')?'http://127.0.0.1:18789':'http://127.0.0.1:5678'})).on('upgrade',(q,s,h)=>p.ws(q,s,h,{target:q.headers.host?.startsWith('5.')?'ws://127.0.0.1:18789':'ws://127.0.0.1:5678'})).listen(30196,'0.0.0.0',()=>console.log('Proxy:30196'));\n");
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxy.toString().getBytes());
 
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: openai/gpt-4o-mini");
-            System.out.println("📋 API: " + baseUrl);
+            System.out.println("🚀 启动服务...");
+            
+            ProcessBuilder n8n = new ProcessBuilder(nodeBin, "--max-old-space-size=2048", baseDir + "/node_modules/.bin/n8n", "start");
+            n8n.environment().putAll(env);
+            n8n.environment().put("N8N_PORT", "5678");
+            n8n.environment().put("N8N_HOST", "0.0.0.0");
+            n8n.environment().put("N8N_SECURE_COOKIE", "false");
+            n8n.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
+            n8n.directory(new File(baseDir));
+            n8n.inheritIO();
+            n8n.start();
 
-            System.out.println("\n🚀 启动 n8n...");
-            ProcessBuilder n8nPb = new ProcessBuilder(
-                nodeBin, "--max-old-space-size=2048",
-                baseDir + "/node_modules/.bin/n8n", "start"
-            );
-            n8nPb.environment().putAll(env);
-            n8nPb.environment().put("N8N_PORT", "5678");
-            n8nPb.environment().put("N8N_HOST", "0.0.0.0");
-            n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
-            n8nPb.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
-            n8nPb.environment().put("N8N_DIAGNOSTICS_ENABLED", "false");
-            n8nPb.environment().put("N8N_VERSION_NOTIFICATIONS_ENABLED", "false");
-            n8nPb.environment().put("N8N_HIRING_BANNER_ENABLED", "false");
-            n8nPb.directory(new File(baseDir));
-            n8nPb.inheritIO();
-            n8nPb.start();
+            ProcessBuilder gw = new ProcessBuilder(nodeBin, ocBin, "gateway", "--port", "18789", "--bind", "lan", "--token", gatewayToken, "--verbose");
+            gw.environment().putAll(env);
+            gw.directory(new File(baseDir));
+            gw.inheritIO();
+            gw.start();
 
-            System.out.println("🚀 启动 Gateway...");
-            ProcessBuilder gatewayPb = new ProcessBuilder(
-                nodeBin, ocBin, "gateway",
-                "--port", "18789",
-                "--bind", "lan",
-                "--token", gatewayToken,
-                "--verbose"
-            );
-            gatewayPb.environment().putAll(env);
-            gatewayPb.directory(new File(baseDir));
-            gatewayPb.inheritIO();
-            gatewayPb.start();
+            Thread.sleep(12000);
 
-            System.out.println("\n⏳ 等待服务启动...");
-            Thread.sleep(15000);
+            ProcessBuilder px = new ProcessBuilder(nodeBin, baseDir + "/proxy.js");
+            px.environment().putAll(env);
+            px.directory(new File(baseDir));
+            px.inheritIO();
+            px.start().waitFor();
 
-            System.out.println("\n🚀 启动反向代理...");
-            ProcessBuilder proxyPb = new ProcessBuilder(nodeBin, baseDir + "/proxy.js");
-            proxyPb.environment().putAll(env);
-            proxyPb.directory(new File(baseDir));
-            proxyPb.inheritIO();
-            proxyPb.start().waitFor();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     static void deleteDirectory(File dir) {
         File[] files = dir.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory()) {
-                    deleteDirectory(file);
-                } else {
-                    file.delete();
-                }
-            }
-        }
+        if (files != null) for (File f : files) { if (f.isDirectory()) deleteDirectory(f); else f.delete(); }
         dir.delete();
     }
 }
