@@ -6,7 +6,7 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 配置中 (深度修改版)...");
+        System.out.println("🦞 [OpenClaw] 配置中 (完全修改版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -26,45 +26,38 @@ public class PaperBootstrap {
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
 
-            // ★★★ 查找所有包含 api.openai.com 的文件并修改 ★★★
-            System.out.println("📝 查找并修改所有 OpenAI API 地址...");
+            // ★★★ 直接修改所有可能的文件 ★★★
+            System.out.println("📝 修改 OpenAI SDK 和 OpenClaw 文件...");
             
-            ProcessBuilder findPb = new ProcessBuilder("sh", "-c",
-                "grep -rl 'api.openai.com' " + baseDir + "/node_modules/openai/ " + 
-                baseDir + "/node_modules/openclaw/ 2>/dev/null"
-            );
-            findPb.directory(new File(baseDir));
-            Process findProc = findPb.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(findProc.getInputStream()));
-            List<String> filesToPatch = new ArrayList<>();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                filesToPatch.add(line.trim());
-            }
-            findProc.waitFor();
+            List<String> filesToCheck = new ArrayList<>();
+            findJsFiles(new File(baseDir + "/node_modules/openai"), filesToCheck);
+            findJsFiles(new File(baseDir + "/node_modules/openclaw"), filesToCheck);
             
-            System.out.println("  找到 " + filesToPatch.size() + " 个文件需要修改");
+            System.out.println("  找到 " + filesToCheck.size() + " 个 JS 文件");
             
-            int count = 0;
-            for (String filePath : filesToPatch) {
+            int modified = 0;
+            for (String filePath : filesToCheck) {
                 try {
                     File file = new File(filePath);
-                    if (file.exists() && file.isFile() && file.canWrite()) {
-                        String content = new String(Files.readAllBytes(file.toPath()));
-                        String modified = content
+                    if (file.length() > 10 * 1024 * 1024) continue; // 跳过超过 10MB 的文件
+                    
+                    byte[] bytes = Files.readAllBytes(file.toPath());
+                    String content = new String(bytes);
+                    
+                    if (content.contains("api.openai.com")) {
+                        String newContent = content
                             .replace("https://api.openai.com/v1", zeaburUrl)
-                            .replace("https://api.openai.com", zeaburUrl.replace("/v1", ""))
+                            .replace("https://api.openai.com", "https://" + zeaburHost)
                             .replace("api.openai.com", zeaburHost);
-                        if (!content.equals(modified)) {
-                            Files.write(file.toPath(), modified.getBytes());
-                            count++;
-                        }
+                        Files.write(file.toPath(), newContent.getBytes());
+                        modified++;
+                        System.out.println("    ✓ " + filePath.substring(baseDir.length()));
                     }
                 } catch (Exception e) {
-                    // 忽略无法修改的文件
+                    // 忽略
                 }
             }
-            System.out.println("  ✓ 已修改 " + count + " 个文件");
+            System.out.println("  共修改 " + modified + " 个文件");
 
             // 删除 Webhook
             try {
@@ -135,7 +128,7 @@ public class PaperBootstrap {
             gw.inheritIO();
             gw.start();
 
-            Thread.sleep(12000);
+            Thread.sleep(15000);
 
             ProcessBuilder px = new ProcessBuilder(nodeBin, baseDir + "/proxy.js");
             px.environment().putAll(env);
@@ -144,6 +137,26 @@ public class PaperBootstrap {
             px.start().waitFor();
 
         } catch (Exception e) { e.printStackTrace(); }
+    }
+    
+    static void findJsFiles(File dir, List<String> result) {
+        if (!dir.exists() || !dir.isDirectory()) return;
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (file.isDirectory()) {
+                // 跳过某些目录
+                String name = file.getName();
+                if (!name.equals("node_modules") && !name.startsWith(".")) {
+                    findJsFiles(file, result);
+                }
+            } else {
+                String name = file.getName();
+                if (name.endsWith(".js") || name.endsWith(".mjs") || name.endsWith(".cjs")) {
+                    result.add(file.getAbsolutePath());
+                }
+            }
+        }
     }
 
     static void deleteDirectory(File dir) {
