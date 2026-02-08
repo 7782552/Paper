@@ -13,10 +13,10 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            // ===== G4F 配置（和你 n8n 里一样）=====
-            String g4fApiKey = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxx";  // ← 填你在 n8n 里用的那个 API Key！
+            // ===== G4F 配置 =====
+            String g4fApiKey = "你在n8n里用的那个API_Key";  // ← 填真实的
             String g4fBaseUrl = "https://88888888888.zeabur.app/v1";
-            // =====================================
+            // ====================
             
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
@@ -24,12 +24,8 @@ public class PaperBootstrap {
             Map<String, String> env = new HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
-            
-            // ===== 重要：这两个环境变量 =====
             env.put("OPENAI_API_KEY", g4fApiKey);
             env.put("OPENAI_BASE_URL", g4fBaseUrl);
-            // ================================
-            
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
@@ -49,10 +45,11 @@ public class PaperBootstrap {
             }
             openclawDir.mkdirs();
 
-            // 2. 写入配置（使用 gpt-4，和你 n8n 一样）
+            // 2. 写入配置 - 使用 openai-compatible
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
+            // ===== 关键改动：使用 openai-compatible =====
             String config = "{\n" +
                 "  \"meta\": {\n" +
                 "    \"lastTouchedVersion\": \"2026.2.3-1\",\n" +
@@ -61,11 +58,14 @@ public class PaperBootstrap {
                 "  \"models\": {\n" +
                 "    \"mode\": \"replace\",\n" +
                 "    \"providers\": {\n" +
-                "      \"openai\": {\n" +
+                "      \"g4f\": {\n" +                                    // ← 自定义名称
+                "        \"type\": \"openai-compatible\",\n" +            // ← 关键！
                 "        \"baseUrl\": \"" + g4fBaseUrl + "\",\n" +
                 "        \"apiKey\": \"" + g4fApiKey + "\",\n" +
                 "        \"models\": [\n" +
-                "          { \"id\": \"gpt-4\", \"name\": \"GPT-4\" }\n" +  // ← 和 n8n 一样用 gpt-4
+                "          { \"id\": \"gpt-4\", \"name\": \"GPT-4\" },\n" +
+                "          { \"id\": \"gpt-4o\", \"name\": \"GPT-4o\" },\n" +
+                "          { \"id\": \"gpt-3.5-turbo\", \"name\": \"GPT-3.5\" }\n" +
                 "        ]\n" +
                 "      }\n" +
                 "    }\n" +
@@ -73,7 +73,7 @@ public class PaperBootstrap {
                 "  \"agents\": {\n" +
                 "    \"defaults\": {\n" +
                 "      \"model\": {\n" +
-                "        \"primary\": \"openai/gpt-4\"\n" +  // ← gpt-4
+                "        \"primary\": \"g4f/gpt-4\"\n" +                   // ← 使用 g4f/gpt-4
                 "      },\n" +
                 "      \"workspace\": \"/home/container/.openclaw/workspace\"\n" +
                 "    }\n" +
@@ -146,82 +146,4 @@ public class PaperBootstrap {
                 "  }\n" +
                 "});\n" +
                 "\n" +
-                "server.listen(30196, '0.0.0.0', () => {\n" +
-                "  console.log('🔀 代理运行在 :30196');\n" +
-                "});\n";
-            
-            Files.write(new File(baseDir + "/proxy.js").toPath(), proxyScript.getBytes());
-
-            // 4. 创建目录
-            new File(baseDir + "/.openclaw/workspace").mkdirs();
-            new File(baseDir + "/.n8n").mkdirs();
-
-            System.out.println("\n📋 模型: openai/gpt-4 (via G4F)");
-            System.out.println("📋 API: " + g4fBaseUrl);
-            System.out.println("📋 浏览器: Chromium ✅");
-
-            // 5. 启动 n8n
-            System.out.println("\n🚀 启动 n8n...");
-            ProcessBuilder n8nPb = new ProcessBuilder(
-                nodeBin, "--max-old-space-size=2048",
-                baseDir + "/node_modules/.bin/n8n", "start"
-            );
-            n8nPb.environment().putAll(env);
-            n8nPb.environment().put("N8N_PORT", "5678");
-            n8nPb.environment().put("N8N_HOST", "0.0.0.0");
-            n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
-            n8nPb.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
-            n8nPb.environment().put("N8N_DIAGNOSTICS_ENABLED", "false");
-            n8nPb.environment().put("N8N_VERSION_NOTIFICATIONS_ENABLED", "false");
-            n8nPb.environment().put("N8N_HIRING_BANNER_ENABLED", "false");
-            n8nPb.directory(new File(baseDir));
-            n8nPb.inheritIO();
-            n8nPb.start();
-
-            // 6. 启动 OpenClaw Gateway
-            System.out.println("🚀 启动 Gateway...");
-            ProcessBuilder gatewayPb = new ProcessBuilder(
-                nodeBin, ocBin, "gateway",
-                "--port", "18789",
-                "--bind", "lan",
-                "--token", gatewayToken,
-                "--verbose"
-            );
-            gatewayPb.environment().putAll(env);
-            gatewayPb.directory(new File(baseDir));
-            gatewayPb.inheritIO();
-            gatewayPb.start();
-
-            // 等待后端启动
-            System.out.println("\n⏳ 等待服务启动...");
-            Thread.sleep(15000);
-
-            // 7. 启动反向代理
-            System.out.println("\n🚀 启动反向代理...");
-            ProcessBuilder proxyPb = new ProcessBuilder(
-                nodeBin, baseDir + "/proxy.js"
-            );
-            proxyPb.environment().putAll(env);
-            proxyPb.directory(new File(baseDir));
-            proxyPb.inheritIO();
-            proxyPb.start().waitFor();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    static void deleteDirectory(File dir) {
-        File[] files = dir.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory()) {
-                    deleteDirectory(file);
-                } else {
-                    file.delete();
-                }
-            }
-        }
-        dir.delete();
-    }
-}
+                "server.listen(30196, '0.0.0.0', () => 
