@@ -15,7 +15,7 @@ public class PaperBootstrap {
             
             // ===== 你的 G4F =====
             String apiKey = "258364353y";
-            String baseUrl = "https://88888888888.zeabur.app/v1";
+            String baseUrl = "https://888888888888.zeabur.app/v1";
             // ====================
             
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
@@ -25,7 +25,7 @@ public class PaperBootstrap {
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
             env.put("OPENAI_API_KEY", apiKey);
-            env.put("OPENAI_BASE_URL", baseUrl);  // ← 就这一行！
+            env.put("OPENAI_BASE_URL", baseUrl);
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
@@ -46,13 +46,12 @@ public class PaperBootstrap {
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
-            // 最简配置，让 OpenClaw 用默认的 openai provider
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
-            sb.append("        \"primary\": \"openai/gpt-4\"\n");
+            sb.append("        \"primary\": \"openai/gpt-4o-mini\"\n");  // ← 改这里！
             sb.append("      },\n");
             sb.append("      \"workspace\": \"/home/container/.openclaw/workspace\"\n");
             sb.append("    }\n");
@@ -122,7 +121,7 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: openai/gpt-4");
+            System.out.println("\n📋 模型: openai/gpt-4o-mini");
             System.out.println("📋 API: " + baseUrl);
 
             System.out.println("\n🚀 启动 n8n...");
