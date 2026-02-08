@@ -53,7 +53,7 @@ public class PaperBootstrap {
                 "    \"mode\": \"merge\",\n" +
                 "    \"providers\": {\n" +
                 "      \"openai\": {\n" +
-                "        \"baseUrl\": \"https://88888888888.zeabur.app/v1",\n" +
+                "        \"baseUrl\": \"https://88888888888.zeabur.app/v1\",\n" +
                 "        \"apiKey\": \"" + openaiApiKey + "\",\n" +
                 "        \"models\": [\n" +
                 "          { \"id\": \"gpt-4\", \"name\": \"GPT-4\" },\n" +
