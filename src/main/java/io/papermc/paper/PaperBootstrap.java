@@ -6,7 +6,7 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 配置中 (完全修改版)...");
+        System.out.println("🦞 [OpenClaw] 配置中 (SDK 修改版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -14,7 +14,6 @@ public class PaperBootstrap {
             
             String apiKey = "sk-g4f-token-any";
             String zeaburUrl = "https://888888888888.zeabur.app/v1";
-            String zeaburHost = "888888888888.zeabur.app";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
@@ -26,38 +25,67 @@ public class PaperBootstrap {
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
 
-            // ★★★ 直接修改所有可能的文件 ★★★
-            System.out.println("📝 修改 OpenAI SDK 和 OpenClaw 文件...");
+            // ★★★ 查找 OpenAI SDK 中的默认 URL ★★★
+            System.out.println("📝 搜索 OpenAI SDK 默认 URL...");
+            ProcessBuilder grepPb = new ProcessBuilder("sh", "-c",
+                "grep -rn 'openai.com\\|DEFAULT.*URL\\|baseURL' " + baseDir + "/node_modules/openai/ 2>/dev/null | head -50"
+            );
+            grepPb.inheritIO();
+            grepPb.start().waitFor();
+
+            // ★★★ 修改 OpenAI SDK 核心文件 ★★★
+            System.out.println("\n📝 修改 OpenAI SDK 核心文件...");
             
-            List<String> filesToCheck = new ArrayList<>();
-            findJsFiles(new File(baseDir + "/node_modules/openai"), filesToCheck);
-            findJsFiles(new File(baseDir + "/node_modules/openclaw"), filesToCheck);
+            String[] coreFiles = {
+                baseDir + "/node_modules/openai/index.js",
+                baseDir + "/node_modules/openai/index.mjs",
+                baseDir + "/node_modules/openai/core.js",
+                baseDir + "/node_modules/openai/core.mjs",
+                baseDir + "/node_modules/openai/client.js",
+                baseDir + "/node_modules/openai/client.mjs",
+                baseDir + "/node_modules/openai/dist/index.js",
+                baseDir + "/node_modules/openai/dist/index.mjs"
+            };
             
-            System.out.println("  找到 " + filesToCheck.size() + " 个 JS 文件");
-            
-            int modified = 0;
-            for (String filePath : filesToCheck) {
-                try {
-                    File file = new File(filePath);
-                    if (file.length() > 10 * 1024 * 1024) continue; // 跳过超过 10MB 的文件
+            for (String filePath : coreFiles) {
+                File file = new File(filePath);
+                if (file.exists()) {
+                    String content = new String(Files.readAllBytes(file.toPath()));
+                    System.out.println("  检查: " + filePath.substring(baseDir.length()));
                     
-                    byte[] bytes = Files.readAllBytes(file.toPath());
-                    String content = new String(bytes);
-                    
-                    if (content.contains("api.openai.com")) {
-                        String newContent = content
-                            .replace("https://api.openai.com/v1", zeaburUrl)
-                            .replace("https://api.openai.com", "https://" + zeaburHost)
-                            .replace("api.openai.com", zeaburHost);
-                        Files.write(file.toPath(), newContent.getBytes());
-                        modified++;
-                        System.out.println("    ✓ " + filePath.substring(baseDir.length()));
+                    // 查找各种可能的 URL 模式
+                    if (content.contains("api.openai.com") || 
+                        content.contains("openai.com") ||
+                        content.contains("DEFAULT_BASE_URL") ||
+                        content.contains("baseURL")) {
+                        System.out.println("    -> 包含相关内容");
                     }
-                } catch (Exception e) {
-                    // 忽略
                 }
             }
-            System.out.println("  共修改 " + modified + " 个文件");
+
+            // ★★★ 创建一个包装脚本来覆盖 OpenAI 默认设置 ★★★
+            System.out.println("\n📝 创建 OpenAI SDK 覆盖脚本...");
+            
+            StringBuilder override = new StringBuilder();
+            override.append("// 覆盖 OpenAI SDK 默认设置\n");
+            override.append("const originalOpenAI = require('openai');\n");
+            override.append("const OriginalClient = originalOpenAI.OpenAI || originalOpenAI.default?.OpenAI || originalOpenAI;\n");
+            override.append("\n");
+            override.append("class PatchedOpenAI extends OriginalClient {\n");
+            override.append("  constructor(opts = {}) {\n");
+            override.append("    super({\n");
+            override.append("      ...opts,\n");
+            override.append("      baseURL: opts.baseURL || '").append(zeaburUrl).append("',\n");
+            override.append("      apiKey: opts.apiKey || '").append(apiKey).append("'\n");
+            override.append("    });\n");
+            override.append("    console.log('[OpenAI Patch] Using baseURL:', this.baseURL);\n");
+            override.append("  }\n");
+            override.append("}\n");
+            override.append("\n");
+            override.append("module.exports = { OpenAI: PatchedOpenAI, default: { OpenAI: PatchedOpenAI } };\n");
+            override.append("module.exports.OpenAI = PatchedOpenAI;\n");
+            
+            Files.write(new File(baseDir + "/openai-override.js").toPath(), override.toString().getBytes());
 
             // 删除 Webhook
             try {
@@ -122,8 +150,10 @@ public class PaperBootstrap {
             n8n.inheritIO();
             n8n.start();
 
+            // ★★★ 使用 NODE_OPTIONS 来预加载覆盖脚本 ★★★
             ProcessBuilder gw = new ProcessBuilder(nodeBin, ocBin, "gateway", "--port", "18789", "--bind", "lan", "--token", gatewayToken, "--verbose");
             gw.environment().putAll(env);
+            gw.environment().put("NODE_OPTIONS", "--require " + baseDir + "/openai-override.js");
             gw.directory(new File(baseDir));
             gw.inheritIO();
             gw.start();
@@ -137,26 +167,6 @@ public class PaperBootstrap {
             px.start().waitFor();
 
         } catch (Exception e) { e.printStackTrace(); }
-    }
-    
-    static void findJsFiles(File dir, List<String> result) {
-        if (!dir.exists() || !dir.isDirectory()) return;
-        File[] files = dir.listFiles();
-        if (files == null) return;
-        for (File file : files) {
-            if (file.isDirectory()) {
-                // 跳过某些目录
-                String name = file.getName();
-                if (!name.equals("node_modules") && !name.startsWith(".")) {
-                    findJsFiles(file, result);
-                }
-            } else {
-                String name = file.getName();
-                if (name.endsWith(".js") || name.endsWith(".mjs") || name.endsWith(".cjs")) {
-                    result.add(file.getAbsolutePath());
-                }
-            }
-        }
     }
 
     static void deleteDirectory(File dir) {
