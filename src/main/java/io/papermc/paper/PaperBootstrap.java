@@ -1,42 +1,47 @@
 package io.papermc.paper;
 
 import java.io.*;
-import java.net.*;
 import java.util.*;
 import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 查找 OpenAI 初始化代码...");
+        System.out.println("🦞 [OpenClaw] 查找代码结构...");
         try {
             String baseDir = "/home/container";
             
-            // 查找 OpenClaw 主代码中的 OpenAI 初始化
-            System.out.println("\n📋 搜索 dist 目录...");
-            ProcessBuilder grep1 = new ProcessBuilder("grep", "-rn", "new OpenAI", baseDir + "/node_modules/openclaw/dist/");
+            System.out.println("\n📋 列出 openclaw dist 目录结构...");
+            ProcessBuilder ls1 = new ProcessBuilder("find", baseDir + "/node_modules/openclaw/dist", "-type", "f", "-name", "*.js", "-path", "*openai*");
+            ls1.inheritIO();
+            ls1.start().waitFor();
+
+            System.out.println("\n📋 列出 openclaw 主目录...");
+            ProcessBuilder ls2 = new ProcessBuilder("ls", "-la", baseDir + "/node_modules/openclaw/dist/");
+            ls2.inheritIO();
+            ls2.start().waitFor();
+
+            System.out.println("\n📋 搜索 OpenAI client 创建...");
+            ProcessBuilder grep1 = new ProcessBuilder("sh", "-c", 
+                "grep -rn 'new OpenAI' " + baseDir + "/node_modules/openclaw/dist/ 2>/dev/null | head -20");
             grep1.inheritIO();
             grep1.start().waitFor();
 
-            System.out.println("\n📋 搜索 baseURL 配置...");
-            ProcessBuilder grep2 = new ProcessBuilder("grep", "-rn", "baseURL", baseDir + "/node_modules/openclaw/dist/");
+            System.out.println("\n📋 搜索 baseURL 或 base_url...");
+            ProcessBuilder grep2 = new ProcessBuilder("sh", "-c",
+                "grep -rn -i 'baseurl\\|base_url' " + baseDir + "/node_modules/openclaw/dist/ 2>/dev/null | head -20");
             grep2.inheritIO();
             grep2.start().waitFor();
 
-            System.out.println("\n📋 搜索 providers 相关代码...");
-            ProcessBuilder grep3 = new ProcessBuilder("grep", "-rn", "provider", baseDir + "/node_modules/openclaw/dist/providers/");
+            System.out.println("\n📋 搜索 llm 或 model provider...");
+            ProcessBuilder grep3 = new ProcessBuilder("sh", "-c",
+                "grep -rn 'createClient\\|getClient\\|llmClient' " + baseDir + "/node_modules/openclaw/dist/ 2>/dev/null | head -20");
             grep3.inheritIO();
             grep3.start().waitFor();
 
-            System.out.println("\n📋 列出 providers 目录...");
-            ProcessBuilder ls = new ProcessBuilder("ls", "-la", baseDir + "/node_modules/openclaw/dist/providers/");
-            ls.inheritIO();
-            ls.start().waitFor();
-
-            System.out.println("\n📋 查看 openai provider 文件...");
-            ProcessBuilder cat = new ProcessBuilder("cat", baseDir + "/node_modules/openclaw/dist/providers/openai.js");
-            cat.inheritIO();
-            cat.start().waitFor();
-
+            // 保持进程运行
+            System.out.println("\n✅ 搜索完成，请查看上面的输出");
+            Thread.sleep(5000);
+            
         } catch (Exception e) { e.printStackTrace(); }
     }
 }
