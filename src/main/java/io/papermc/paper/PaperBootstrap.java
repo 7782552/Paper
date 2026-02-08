@@ -13,18 +13,17 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            String apiUrl = "https://88888888888.zeabur.app/v1";
+            String openaiApiKey = "sk-123548854";  // ← 换成你的 OpenAI API Key
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
             Map<String, String> env = new HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
+            env.put("OPENAI_API_KEY", openaiApiKey);  // ← 改这里
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
-            env.put("OPENAI_API_KEY", "sk-dummy");
-            env.put("OPENAI_BASE_URL", apiUrl);
 
             // 0. 删除 Webhook
             System.out.println("🗑️ 删除 Telegram Webhook...");
@@ -41,7 +40,7 @@ public class PaperBootstrap {
             }
             openclawDir.mkdirs();
 
-            // 2. 写入配置（使用 OpenAI 兼容格式）
+            // 2. 写入配置（GPT-4）
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
@@ -54,10 +53,12 @@ public class PaperBootstrap {
                 "    \"mode\": \"merge\",\n" +
                 "    \"providers\": {\n" +
                 "      \"openai\": {\n" +
-                "        \"baseUrl\": \"" + apiUrl + "\",\n" +
-                "        \"apiKey\": \"sk-dummy\",\n" +
+                "        \"baseUrl\": \"https://88888888888.zeabur.app/v1\",\n" +
+                "        \"apiKey\": \"" + openaiApiKey + "\",\n" +
                 "        \"models\": [\n" +
-                "          { \"id\": \"gpt-4\", \"name\": \"GPT-4\" }\n" +
+                "          { \"id\": \"gpt-4\", \"name\": \"GPT-4\" },\n" +
+                "          { \"id\": \"gpt-4-turbo\", \"name\": \"GPT-4 Turbo\" },\n" +
+                "          { \"id\": \"gpt-4o\", \"name\": \"GPT-4o\" }\n" +
                 "        ]\n" +
                 "      }\n" +
                 "    }\n" +
@@ -148,8 +149,7 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: openai/gpt-4");
-            System.out.println("📋 API: " + apiUrl);
+            System.out.println("\n📋 模型: openai/gpt-4");  // ← 改这里
             System.out.println("📋 浏览器: Chromium ✅");
 
             // 5. 启动 n8n
