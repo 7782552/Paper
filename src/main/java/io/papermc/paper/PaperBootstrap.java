@@ -39,15 +39,9 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             Runtime.getRuntime().exec("chmod 700 " + baseDir + "/.openclaw").waitFor();
 
-            // ★★★ 关键配置：models.openai 设置自定义 API ★★★
+            // 先写一个干净的基础配置
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
-            sb.append("  \"models\": {\n");
-            sb.append("    \"openai\": {\n");
-            sb.append("      \"apiKey\": \"").append(apiKey).append("\",\n");
-            sb.append("      \"baseUrl\": \"").append(baseUrl).append("\"\n");
-            sb.append("    }\n");
-            sb.append("  },\n");
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
@@ -75,6 +69,40 @@ public class PaperBootstrap {
             
             Files.write(new File(baseDir + "/.openclaw/openclaw.json").toPath(), sb.toString().getBytes());
 
+            // ★★★ 使用 CLI 查看所有可用的配置路径 ★★★
+            System.out.println("\n📋 查看可用配置路径...");
+            ProcessBuilder schemaPb = new ProcessBuilder(nodeBin, ocBin, "config", "get", "models");
+            schemaPb.environment().putAll(env);
+            schemaPb.directory(new File(baseDir));
+            schemaPb.inheritIO();
+            schemaPb.start().waitFor();
+
+            // 尝试用 CLI 设置
+            System.out.println("\n📋 尝试 CLI 设置 baseUrl...");
+            String[] configPaths = {
+                "agents.defaults.model.baseUrl",
+                "agents.defaults.baseUrl", 
+                "openai.baseUrl",
+                "llm.openai.baseUrl",
+                "api.openai.baseUrl"
+            };
+            
+            for (String path : configPaths) {
+                System.out.println("尝试: " + path);
+                ProcessBuilder setPb = new ProcessBuilder(nodeBin, ocBin, "config", "set", path, baseUrl);
+                setPb.environment().putAll(env);
+                setPb.directory(new File(baseDir));
+                setPb.inheritIO();
+                setPb.start().waitFor();
+            }
+
+            // 显示最终配置
+            System.out.println("\n📋 最终配置文件:");
+            ProcessBuilder catPb = new ProcessBuilder("cat", baseDir + "/.openclaw/openclaw.json");
+            catPb.inheritIO();
+            catPb.start().waitFor();
+
+            // 创建代理
             StringBuilder proxy = new StringBuilder();
             proxy.append("const http=require('http'),httpProxy=require('http-proxy');\n");
             proxy.append("const p=httpProxy.createProxyServer({ws:true});\n");
@@ -84,7 +112,7 @@ public class PaperBootstrap {
 
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("🚀 启动服务...");
+            System.out.println("\n🚀 启动服务...");
             
             ProcessBuilder n8n = new ProcessBuilder(nodeBin, "--max-old-space-size=2048", baseDir + "/node_modules/.bin/n8n", "start");
             n8n.environment().putAll(env);
