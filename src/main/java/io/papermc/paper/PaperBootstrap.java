@@ -7,134 +7,36 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 调试环境变量...");
+        System.out.println("🦞 [OpenClaw] 查找 OpenAI 初始化代码...");
         try {
             String baseDir = "/home/container";
-            String nodeBin = baseDir + "/node-v22/bin/node";
             
-            String apiKey = "sk-g4f-token-any";
-            String zeaburUrl = "https://888888888888.zeabur.app";
-            String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
-            String gatewayToken = "admin123";
+            // 查找 OpenClaw 主代码中的 OpenAI 初始化
+            System.out.println("\n📋 搜索 dist 目录...");
+            ProcessBuilder grep1 = new ProcessBuilder("grep", "-rn", "new OpenAI", baseDir + "/node_modules/openclaw/dist/");
+            grep1.inheritIO();
+            grep1.start().waitFor();
 
-            Map<String, String> env = new HashMap<>();
-            env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
-            env.put("HOME", baseDir);
-            env.put("OPENAI_API_KEY", apiKey);
-            env.put("OPENAI_BASE_URL", zeaburUrl + "/v1");
-            env.put("OPENAI_API_BASE", zeaburUrl + "/v1");
-            env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
-            env.put("TMPDIR", baseDir + "/tmp");
+            System.out.println("\n📋 搜索 baseURL 配置...");
+            ProcessBuilder grep2 = new ProcessBuilder("grep", "-rn", "baseURL", baseDir + "/node_modules/openclaw/dist/");
+            grep2.inheritIO();
+            grep2.start().waitFor();
 
-            try {
-                URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.getResponseCode();
-            } catch (Exception e) {}
+            System.out.println("\n📋 搜索 providers 相关代码...");
+            ProcessBuilder grep3 = new ProcessBuilder("grep", "-rn", "provider", baseDir + "/node_modules/openclaw/dist/providers/");
+            grep3.inheritIO();
+            grep3.start().waitFor();
 
-            File openclawDir = new File(baseDir + "/.openclaw");
-            if (openclawDir.exists()) deleteDirectory(openclawDir);
-            openclawDir.mkdirs();
-            new File(baseDir + "/.openclaw/workspace").mkdirs();
+            System.out.println("\n📋 列出 providers 目录...");
+            ProcessBuilder ls = new ProcessBuilder("ls", "-la", baseDir + "/node_modules/openclaw/dist/providers/");
+            ls.inheritIO();
+            ls.start().waitFor();
 
-            // 配置文件
-            StringBuilder sb = new StringBuilder();
-            sb.append("{\n");
-            sb.append("  \"agents\": {\n");
-            sb.append("    \"defaults\": {\n");
-            sb.append("      \"model\": { \"primary\": \"openai/gpt-4o-mini\" },\n");
-            sb.append("      \"workspace\": \"").append(baseDir).append("/.openclaw/workspace\"\n");
-            sb.append("    }\n");
-            sb.append("  },\n");
-            sb.append("  \"channels\": {\n");
-            sb.append("    \"telegram\": {\n");
-            sb.append("      \"enabled\": true,\n");
-            sb.append("      \"botToken\": \"").append(telegramToken).append("\",\n");
-            sb.append("      \"dmPolicy\": \"open\",\n");
-            sb.append("      \"groupPolicy\": \"open\",\n");
-            sb.append("      \"allowFrom\": [\"*\"]\n");
-            sb.append("    }\n");
-            sb.append("  },\n");
-            sb.append("  \"gateway\": {\n");
-            sb.append("    \"mode\": \"local\",\n");
-            sb.append("    \"port\": 18789,\n");
-            sb.append("    \"bind\": \"lan\",\n");
-            sb.append("    \"auth\": { \"mode\": \"token\", \"token\": \"").append(gatewayToken).append("\" }\n");
-            sb.append("  }\n");
-            sb.append("}");
-            Files.write(new File(baseDir + "/.openclaw/openclaw.json").toPath(), sb.toString().getBytes());
-
-            // ★★★ 测试脚本：检查 OpenAI SDK 如何读取配置 ★★★
-            System.out.println("\n📋 测试 OpenAI SDK 配置...");
-            StringBuilder testScript = new StringBuilder();
-            testScript.append("const { OpenAI } = require('openai');\n");
-            testScript.append("console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY);\n");
-            testScript.append("console.log('OPENAI_BASE_URL:', process.env.OPENAI_BASE_URL);\n");
-            testScript.append("console.log('OPENAI_API_BASE:', process.env.OPENAI_API_BASE);\n");
-            testScript.append("const client = new OpenAI();\n");
-            testScript.append("console.log('OpenAI client baseURL:', client.baseURL);\n");
-            Files.write(new File(baseDir + "/test-openai.js").toPath(), testScript.toString().getBytes());
-
-            ProcessBuilder testPb = new ProcessBuilder(nodeBin, baseDir + "/test-openai.js");
-            testPb.environment().putAll(env);
-            testPb.directory(new File(baseDir));
-            testPb.inheritIO();
-            testPb.start().waitFor();
-
-            // ★★★ 查看 OpenClaw 源码中的 OpenAI 初始化 ★★★
-            System.out.println("\n📋 查看 OpenClaw 如何初始化 OpenAI...");
-            ProcessBuilder grepPb = new ProcessBuilder("grep", "-r", "new OpenAI", baseDir + "/node_modules/openclaw/");
-            grepPb.inheritIO();
-            grepPb.start().waitFor();
-
-            ProcessBuilder grep2Pb = new ProcessBuilder("grep", "-r", "baseURL", baseDir + "/node_modules/openclaw/dist/");
-            grep2Pb.inheritIO();
-            grep2Pb.start().waitFor();
-
-            // 主代理
-            StringBuilder proxy = new StringBuilder();
-            proxy.append("const http=require('http'),httpProxy=require('http-proxy');\n");
-            proxy.append("const p=httpProxy.createProxyServer({ws:true});\n");
-            proxy.append("p.on('error',(e,q,r)=>{if(r&&r.writeHead){r.writeHead(503);r.end();}});\n");
-            proxy.append("http.createServer((q,r)=>p.web(q,r,{target:q.headers.host?.startsWith('5.')?'http://127.0.0.1:18789':'http://127.0.0.1:5678'})).on('upgrade',(q,s,h)=>p.ws(q,s,h,{target:q.headers.host?.startsWith('5.')?'ws://127.0.0.1:18789':'ws://127.0.0.1:5678'})).listen(30196,'0.0.0.0',()=>console.log('Proxy:30196'));\n");
-            Files.write(new File(baseDir + "/proxy.js").toPath(), proxy.toString().getBytes());
-
-            new File(baseDir + "/.n8n").mkdirs();
-
-            System.out.println("\n🚀 启动服务...");
-            
-            ProcessBuilder n8n = new ProcessBuilder(nodeBin, "--max-old-space-size=2048", baseDir + "/node_modules/.bin/n8n", "start");
-            n8n.environment().putAll(env);
-            n8n.environment().put("N8N_PORT", "5678");
-            n8n.environment().put("N8N_HOST", "0.0.0.0");
-            n8n.environment().put("N8N_SECURE_COOKIE", "false");
-            n8n.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
-            n8n.directory(new File(baseDir));
-            n8n.inheritIO();
-            n8n.start();
-
-            String ocBin = baseDir + "/node_modules/.bin/openclaw";
-            ProcessBuilder gw = new ProcessBuilder(nodeBin, ocBin, "gateway", "--port", "18789", "--bind", "lan", "--token", gatewayToken, "--verbose");
-            gw.environment().putAll(env);
-            gw.directory(new File(baseDir));
-            gw.inheritIO();
-            gw.start();
-
-            Thread.sleep(12000);
-
-            ProcessBuilder px = new ProcessBuilder(nodeBin, baseDir + "/proxy.js");
-            px.environment().putAll(env);
-            px.directory(new File(baseDir));
-            px.inheritIO();
-            px.start().waitFor();
+            System.out.println("\n📋 查看 openai provider 文件...");
+            ProcessBuilder cat = new ProcessBuilder("cat", baseDir + "/node_modules/openclaw/dist/providers/openai.js");
+            cat.inheritIO();
+            cat.start().waitFor();
 
         } catch (Exception e) { e.printStackTrace(); }
-    }
-
-    static void deleteDirectory(File dir) {
-        File[] files = dir.listFiles();
-        if (files != null) for (File f : files) { if (f.isDirectory()) deleteDirectory(f); else f.delete(); }
-        dir.delete();
     }
 }
