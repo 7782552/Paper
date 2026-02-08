@@ -290,4 +290,52 @@ public class PaperBootstrap {
             Map<String, String> n8nEnv = new HashMap<>(env);
             n8nEnv.put("N8N_PORT", "5678");
             n8nEnv.put("N8N_HOST", "0.0.0.0");
-            
+            n8nEnv.put("N8N_SECURE_COOKIE", "false");
+            n8nEnv.put("N8N_USER_FOLDER", baseDir + "/.n8n");
+            n8n.environment().putAll(n8nEnv);
+            n8n.directory(new File(baseDir));
+            n8n.inheritIO();
+            n8n.start();
+
+            // 3. 启动 OpenClaw Gateway
+            System.out.println("  启动 OpenClaw Gateway...");
+            ProcessBuilder gw = new ProcessBuilder(nodeBin, ocBin, "gateway", "--port", "18789", "--bind", "lan", "--token", gatewayToken, "--verbose");
+            gw.environment().putAll(env);
+            gw.directory(new File(baseDir));
+            gw.inheritIO();
+            gw.start();
+
+            Thread.sleep(10000);
+
+            // 4. 启动 Telegram
+            System.out.println("  启动 Telegram 频道...");
+            ProcessBuilder tg = new ProcessBuilder(nodeBin, ocBin, "telegram", "--verbose");
+            tg.environment().putAll(env);
+            tg.directory(new File(baseDir));
+            tg.inheritIO();
+            tg.start();
+
+            Thread.sleep(5000);
+
+            // 5. 启动主代理
+            System.out.println("  启动主代理...");
+            ProcessBuilder px = new ProcessBuilder(nodeBin, baseDir + "/proxy.js");
+            px.environment().putAll(env);
+            px.directory(new File(baseDir));
+            px.inheritIO();
+            px.start().waitFor();
+
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    static void deleteDirectory(File dir) {
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                if (f.isDirectory()) deleteDirectory(f);
+                else f.delete();
+            }
+        }
+        dir.delete();
+    }
+}
