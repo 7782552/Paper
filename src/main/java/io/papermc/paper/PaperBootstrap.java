@@ -6,7 +6,7 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 配置中 (调试版)...");
+        System.out.println("🦞 [OpenClaw] 配置中 (检查端点版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -26,16 +26,27 @@ public class PaperBootstrap {
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
 
-            // ★★★ 先用 curl 测试 API ★★★
-            System.out.println("📝 测试 G4F API...");
-            ProcessBuilder curlTest = new ProcessBuilder("sh", "-c",
-                "curl -s -X POST '" + zeaburUrl + "/chat/completions' " +
-                "-H 'Content-Type: application/json' " +
-                "-H 'Authorization: Bearer " + apiKey + "' " +
-                "-d '{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}' 2>&1 | head -20"
+            // ★★★ 搜索 OpenClaw 使用的 API 端点 ★★★
+            System.out.println("📝 搜索 OpenClaw 使用的 API 端点...");
+            ProcessBuilder grep1 = new ProcessBuilder("sh", "-c",
+                "grep -rn 'responses\\|completions\\|/v1/' " + baseDir + "/node_modules/@mariozechner/pi-ai/dist/ 2>/dev/null | grep -v node_modules | head -30"
             );
-            curlTest.inheritIO();
-            curlTest.start().waitFor();
+            grep1.inheritIO();
+            grep1.start().waitFor();
+
+            System.out.println("\n📝 搜索 chat.completions 或 responses.create...");
+            ProcessBuilder grep2 = new ProcessBuilder("sh", "-c",
+                "grep -rn 'chat.completions\\|responses.create\\|responses.stream' " + baseDir + "/node_modules/@mariozechner/pi-ai/dist/ 2>/dev/null | head -20"
+            );
+            grep2.inheritIO();
+            grep2.start().waitFor();
+
+            System.out.println("\n📝 搜索 OpenClaw 中的 API 调用...");
+            ProcessBuilder grep3 = new ProcessBuilder("sh", "-c",
+                "grep -rn 'responses\\|/chat/' " + baseDir + "/node_modules/openclaw/dist/*.js 2>/dev/null | head -20"
+            );
+            grep3.inheritIO();
+            grep3.start().waitFor();
 
             // 替换域名
             System.out.println("\n📝 替换域名...");
