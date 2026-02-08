@@ -7,24 +7,22 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 配置中 (本地代理方案)...");
+        System.out.println("🦞 [OpenClaw] 调试环境变量...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
-            String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
             String apiKey = "sk-g4f-token-any";
             String zeaburUrl = "https://888888888888.zeabur.app";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
 
-            // ★★★ 关键：让 OpenClaw 连接本地代理 ★★★
             Map<String, String> env = new HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
             env.put("OPENAI_API_KEY", apiKey);
-            env.put("OPENAI_BASE_URL", "http://127.0.0.1:9999/v1"); // 本地代理
-            env.put("OPENAI_API_BASE", "http://127.0.0.1:9999/v1");
+            env.put("OPENAI_BASE_URL", zeaburUrl + "/v1");
+            env.put("OPENAI_API_BASE", zeaburUrl + "/v1");
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
 
@@ -67,36 +65,32 @@ public class PaperBootstrap {
             sb.append("}");
             Files.write(new File(baseDir + "/.openclaw/openclaw.json").toPath(), sb.toString().getBytes());
 
-            // ★★★ OpenAI API 代理 - 转发到 Zeabur ★★★
-            System.out.println("📝 创建 OpenAI API 代理...");
-            StringBuilder apiProxy = new StringBuilder();
-            apiProxy.append("const http = require('http');\n");
-            apiProxy.append("const https = require('https');\n");
-            apiProxy.append("const { URL } = require('url');\n\n");
-            apiProxy.append("const TARGET = '").append(zeaburUrl).append("';\n\n");
-            apiProxy.append("http.createServer((req, res) => {\n");
-            apiProxy.append("  const target = new URL(req.url, TARGET);\n");
-            apiProxy.append("  console.log('[API Proxy] ' + req.method + ' ' + req.url + ' -> ' + target.href);\n");
-            apiProxy.append("  const options = {\n");
-            apiProxy.append("    hostname: target.hostname,\n");
-            apiProxy.append("    port: 443,\n");
-            apiProxy.append("    path: target.pathname + target.search,\n");
-            apiProxy.append("    method: req.method,\n");
-            apiProxy.append("    headers: { ...req.headers, host: target.hostname }\n");
-            apiProxy.append("  };\n");
-            apiProxy.append("  const proxyReq = https.request(options, (proxyRes) => {\n");
-            apiProxy.append("    console.log('[API Proxy] Response: ' + proxyRes.statusCode);\n");
-            apiProxy.append("    res.writeHead(proxyRes.statusCode, proxyRes.headers);\n");
-            apiProxy.append("    proxyRes.pipe(res);\n");
-            apiProxy.append("  });\n");
-            apiProxy.append("  proxyReq.on('error', (e) => {\n");
-            apiProxy.append("    console.error('[API Proxy] Error:', e.message);\n");
-            apiProxy.append("    res.writeHead(502);\n");
-            apiProxy.append("    res.end('Proxy Error: ' + e.message);\n");
-            apiProxy.append("  });\n");
-            apiProxy.append("  req.pipe(proxyReq);\n");
-            apiProxy.append("}).listen(9999, '127.0.0.1', () => console.log('[API Proxy] OpenAI -> Zeabur on :9999'));\n");
-            Files.write(new File(baseDir + "/api-proxy.js").toPath(), apiProxy.toString().getBytes());
+            // ★★★ 测试脚本：检查 OpenAI SDK 如何读取配置 ★★★
+            System.out.println("\n📋 测试 OpenAI SDK 配置...");
+            StringBuilder testScript = new StringBuilder();
+            testScript.append("const { OpenAI } = require('openai');\n");
+            testScript.append("console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY);\n");
+            testScript.append("console.log('OPENAI_BASE_URL:', process.env.OPENAI_BASE_URL);\n");
+            testScript.append("console.log('OPENAI_API_BASE:', process.env.OPENAI_API_BASE);\n");
+            testScript.append("const client = new OpenAI();\n");
+            testScript.append("console.log('OpenAI client baseURL:', client.baseURL);\n");
+            Files.write(new File(baseDir + "/test-openai.js").toPath(), testScript.toString().getBytes());
+
+            ProcessBuilder testPb = new ProcessBuilder(nodeBin, baseDir + "/test-openai.js");
+            testPb.environment().putAll(env);
+            testPb.directory(new File(baseDir));
+            testPb.inheritIO();
+            testPb.start().waitFor();
+
+            // ★★★ 查看 OpenClaw 源码中的 OpenAI 初始化 ★★★
+            System.out.println("\n📋 查看 OpenClaw 如何初始化 OpenAI...");
+            ProcessBuilder grepPb = new ProcessBuilder("grep", "-r", "new OpenAI", baseDir + "/node_modules/openclaw/");
+            grepPb.inheritIO();
+            grepPb.start().waitFor();
+
+            ProcessBuilder grep2Pb = new ProcessBuilder("grep", "-r", "baseURL", baseDir + "/node_modules/openclaw/dist/");
+            grep2Pb.inheritIO();
+            grep2Pb.start().waitFor();
 
             // 主代理
             StringBuilder proxy = new StringBuilder();
@@ -108,17 +102,8 @@ public class PaperBootstrap {
 
             new File(baseDir + "/.n8n").mkdirs();
 
-            // ★★★ 先启动 API 代理 ★★★
-            System.out.println("🚀 启动 API 代理 (9999 -> Zeabur)...");
-            ProcessBuilder apiProxyPb = new ProcessBuilder(nodeBin, baseDir + "/api-proxy.js");
-            apiProxyPb.environment().putAll(env);
-            apiProxyPb.directory(new File(baseDir));
-            apiProxyPb.inheritIO();
-            apiProxyPb.start();
-
-            Thread.sleep(2000);
-
-            System.out.println("🚀 启动 n8n...");
+            System.out.println("\n🚀 启动服务...");
+            
             ProcessBuilder n8n = new ProcessBuilder(nodeBin, "--max-old-space-size=2048", baseDir + "/node_modules/.bin/n8n", "start");
             n8n.environment().putAll(env);
             n8n.environment().put("N8N_PORT", "5678");
@@ -129,7 +114,7 @@ public class PaperBootstrap {
             n8n.inheritIO();
             n8n.start();
 
-            System.out.println("🚀 启动 Gateway...");
+            String ocBin = baseDir + "/node_modules/.bin/openclaw";
             ProcessBuilder gw = new ProcessBuilder(nodeBin, ocBin, "gateway", "--port", "18789", "--bind", "lan", "--token", gatewayToken, "--verbose");
             gw.environment().putAll(env);
             gw.directory(new File(baseDir));
@@ -138,7 +123,6 @@ public class PaperBootstrap {
 
             Thread.sleep(12000);
 
-            System.out.println("🚀 启动主代理...");
             ProcessBuilder px = new ProcessBuilder(nodeBin, baseDir + "/proxy.js");
             px.environment().putAll(env);
             px.directory(new File(baseDir));
