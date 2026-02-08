@@ -7,7 +7,7 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 正在配置 (调试版)...");
+        System.out.println("🦞 [OpenClaw] 正在配置 (调试版v2)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -24,17 +24,9 @@ public class PaperBootstrap {
             Map<String, String> env = new HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
-            
-            // ★★★ 尝试所有可能的环境变量 ★★★
             env.put("OPENAI_API_KEY", apiKey);
             env.put("OPENAI_BASE_URL", baseUrl);
             env.put("OPENAI_API_BASE", baseUrl);
-            env.put("OPENCLAW_OPENAI_API_KEY", apiKey);
-            env.put("OPENCLAW_OPENAI_BASE_URL", baseUrl);
-            env.put("OPENCLAW_MODEL_BASE_URL", baseUrl);
-            env.put("OPENCLAW_API_KEY", apiKey);
-            env.put("OPENCLAW_BASE_URL", baseUrl);
-            
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
@@ -47,34 +39,51 @@ public class PaperBootstrap {
                 conn.getResponseCode();
             } catch (Exception e) {}
 
-            // ★★★ 先运行 openclaw config --help 查看帮助 ★★★
-            System.out.println("\n📋 查看 OpenClaw 配置帮助...");
-            ProcessBuilder helpPb = new ProcessBuilder(nodeBin, ocBin, "config", "--help");
-            helpPb.environment().putAll(env);
-            helpPb.directory(new File(baseDir));
-            helpPb.inheritIO();
-            Process helpProc = helpPb.start();
-            helpProc.waitFor();
-            
-            System.out.println("\n📋 查看 OpenClaw 支持的模型...");
-            ProcessBuilder modelsPb = new ProcessBuilder(nodeBin, ocBin, "models");
-            modelsPb.environment().putAll(env);
-            modelsPb.directory(new File(baseDir));
-            modelsPb.inheritIO();
-            Process modelsProc = modelsPb.start();
-            modelsProc.waitFor();
-
+            // ★★★ 先删除旧配置 ★★★
             System.out.println("\n🧹 删除旧配置...");
             File openclawDir = new File(baseDir + "/.openclaw");
             if (openclawDir.exists()) {
                 deleteDirectory(openclawDir);
             }
             openclawDir.mkdirs();
+            new File(baseDir + "/.openclaw/workspace").mkdirs();
 
-            System.out.println("📝 写入最简配置...");
+            // ★★★ 写入空配置先 ★★★
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
+            Files.write(configFile.toPath(), "{}".getBytes());
+
+            // ★★★ 运行调试命令 ★★★
+            System.out.println("\n📋 查看 OpenClaw 版本和帮助...");
             
-            // ★★★ 最简配置，不加任何额外字段 ★★★
+            ProcessBuilder versionPb = new ProcessBuilder(nodeBin, ocBin, "--version");
+            versionPb.environment().putAll(env);
+            versionPb.directory(new File(baseDir));
+            versionPb.inheritIO();
+            versionPb.start().waitFor();
+
+            System.out.println("\n📋 运行 openclaw doctor 查看配置要求...");
+            ProcessBuilder doctorPb = new ProcessBuilder(nodeBin, ocBin, "doctor");
+            doctorPb.environment().putAll(env);
+            doctorPb.directory(new File(baseDir));
+            doctorPb.inheritIO();
+            doctorPb.start().waitFor();
+
+            System.out.println("\n📋 查看 openclaw config get 所有配置...");
+            ProcessBuilder configGetPb = new ProcessBuilder(nodeBin, ocBin, "config", "get");
+            configGetPb.environment().putAll(env);
+            configGetPb.directory(new File(baseDir));
+            configGetPb.inheritIO();
+            configGetPb.start().waitFor();
+
+            System.out.println("\n📋 查看主帮助...");
+            ProcessBuilder helpPb = new ProcessBuilder(nodeBin, ocBin, "--help");
+            helpPb.environment().putAll(env);
+            helpPb.directory(new File(baseDir));
+            helpPb.inheritIO();
+            helpPb.start().waitFor();
+
+            System.out.println("\n📝 写入正式配置...");
+            
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
             sb.append("  \"agents\": {\n");
@@ -156,11 +165,10 @@ public class PaperBootstrap {
             
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxy.toString().getBytes());
 
-            new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
             System.out.println("\n📋 模型: openai/gpt-4o-mini");
-            System.out.println("📋 API: " + baseUrl + " (通过环境变量)");
+            System.out.println("📋 API: " + baseUrl);
 
             System.out.println("\n🚀 启动 n8n...");
             ProcessBuilder n8nPb = new ProcessBuilder(
