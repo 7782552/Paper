@@ -7,7 +7,7 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 正在配置 (兼容API版)...");
+        System.out.println("🦞 [OpenClaw] 正在配置 (自定义URL版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
@@ -49,19 +49,24 @@ public class PaperBootstrap {
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
-            // ★★★ 使用 openai-compatible 并指定 baseUrl ★★★
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
+            
+            // ★★★ 尝试使用 models 配置定义自定义模型 ★★★
+            sb.append("  \"models\": {\n");
+            sb.append("    \"my-gpt\": {\n");
+            sb.append("      \"provider\": \"openai\",\n");
+            sb.append("      \"model\": \"gpt-4o-mini\",\n");
+            sb.append("      \"baseUrl\": \"").append(baseUrl).append("\",\n");
+            sb.append("      \"apiKey\": \"").append(apiKey).append("\"\n");
+            sb.append("    }\n");
+            sb.append("  },\n");
+            
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
-            // ★★★ 关键修改：使用完整的模型配置对象 ★★★
-            sb.append("        \"primary\": {\n");
-            sb.append("          \"provider\": \"openai-compatible\",\n");
-            sb.append("          \"model\": \"gpt-4o-mini\",\n");
-            sb.append("          \"baseUrl\": \"").append(baseUrl).append("\",\n");
-            sb.append("          \"apiKey\": \"").append(apiKey).append("\"\n");
-            sb.append("        }\n");
+            // ★★★ 引用自定义模型 ★★★
+            sb.append("        \"primary\": \"my-gpt\"\n");
             sb.append("      },\n");
             sb.append("      \"workspace\": \"/home/container/.openclaw/workspace\"\n");
             sb.append("    }\n");
@@ -140,7 +145,7 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: openai-compatible/gpt-4o-mini");
+            System.out.println("\n📋 模型: my-gpt (gpt-4o-mini)");
             System.out.println("📋 API: " + baseUrl);
 
             System.out.println("\n🚀 启动 n8n...");
