@@ -13,8 +13,6 @@ public class PaperBootstrap {
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
             String apiKey = "sk-g4f-token-any";
-            // ★★★ 注意：baseURL 不要带 /v1，让 SDK 自己加 ★★★
-            String zeaburBase = "https://888888888888.zeabur.app";
             String zeaburUrl = "https://888888888888.zeabur.app/v1";
             String zeaburHost = "888888888888.zeabur.app";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
@@ -28,38 +26,38 @@ public class PaperBootstrap {
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
 
-            // ★★★ 先检查当前的替换结果 ★★★
-            System.out.println("📝 检查当前 888888888888.zeabur.app 出现的位置...");
+            // 检查当前替换结果
+            System.out.println("📝 检查当前替换状态...");
             ProcessBuilder check = new ProcessBuilder("sh", "-c",
-                "grep -rn '888888888888.zeabur.app' " + baseDir + "/node_modules/@mariozechner/pi-ai/node_modules/openai/ 2>/dev/null | head -10"
+                "grep -rn '888888888888' " + baseDir + "/node_modules/@mariozechner/pi-ai/node_modules/openai/client.js 2>/dev/null | head -5"
             );
             check.inheritIO();
             check.start().waitFor();
 
-            // ★★★ 确保路径正确：api.openai.com -> 888888888888.zeabur.app (不带 /v1) ★★★
-            System.out.println("\n📝 重新替换，保持正确的路径...");
-            
-            // 先恢复原始状态（如果之前有错误替换）
+            // 先恢复原始状态
+            System.out.println("\n📝 恢复原始状态...");
             ProcessBuilder restore = new ProcessBuilder("sh", "-c",
                 "find " + baseDir + "/node_modules -type f 2>/dev/null | " +
                 "xargs grep -l '888888888888.zeabur.app' 2>/dev/null | " +
-                "xargs sed -i 's|" + zeaburHost + "|api.openai.com|g' 2>/dev/null"
+                "xargs sed -i 's|888888888888.zeabur.app|api.openai.com|g' 2>/dev/null; echo done"
             );
+            restore.inheritIO();
             restore.start().waitFor();
             
-            // 现在正确替换
+            // 正确替换：只替换域名
+            System.out.println("\n📝 正确替换域名...");
             ProcessBuilder sed1 = new ProcessBuilder("sh", "-c",
                 "find " + baseDir + "/node_modules -type f 2>/dev/null | " +
                 "xargs grep -l 'api.openai.com' 2>/dev/null | " +
-                "xargs sed -i 's|api.openai.com|" + zeaburHost + "|g' 2>/dev/null"
+                "xargs sed -i 's|api.openai.com|" + zeaburHost + "|g' 2>/dev/null; echo done"
             );
+            sed1.inheritIO();
             sed1.start().waitFor();
-            System.out.println("  ✓ 替换完成");
 
-            // ★★★ 验证替换结果 ★★★
+            // 验证
             System.out.println("\n📝 验证替换结果...");
             ProcessBuilder verify = new ProcessBuilder("sh", "-c",
-                "grep -rn 'https://888888888888' " + baseDir + "/node_modules/@mariozechner/pi-ai/node_modules/openai/client.js 2>/dev/null | head -5"
+                "grep -n 'baseURL\\|888888888888' " + baseDir + "/node_modules/@mariozechner/pi-ai/node_modules/openai/client.js 2>/dev/null | head -10"
             );
             verify.inheritIO();
             verify.start().waitFor();
@@ -146,7 +144,15 @@ public class PaperBootstrap {
 
     static void deleteDirectory(File dir) {
         File[] files = dir.listFiles();
-        if (files != null) for (File f : files) { if (f.isDirectory()) deleteDirectory(f); else f.delete(); }
+        if (files != null) {
+            for (File f : files) {
+                if (f.isDirectory()) {
+                    deleteDirectory(f);
+                } else {
+                    f.delete();
+                }
+            }
+        }
         dir.delete();
     }
 }
