@@ -51,7 +51,7 @@ public class PaperBootstrap {
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
-            sb.append("        \"primary\": \"openai/gpt-4o-mini\"\n");  // ← 改这里！
+            sb.append("        \"primary\": \"openai/gpt-4o\"\n");  // ← 改这里！
             sb.append("      },\n");
             sb.append("      \"workspace\": \"/home/container/.openclaw/workspace\"\n");
             sb.append("    }\n");
