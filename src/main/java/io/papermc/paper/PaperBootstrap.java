@@ -13,10 +13,10 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            // ===== G4F 配置 =====
-            String g4fApiKey = "sk-free";
-            String g4fBaseUrl = "https://88888888888.zeabur.app/v1";  // 你的 G4F 地址
-            // ====================
+            // ===== G4F 配置（和你 n8n 里一样）=====
+            String g4fApiKey = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxx";  // ← 填你在 n8n 里用的那个 API Key！
+            String g4fBaseUrl = "https://88888888888.zeabur.app/v1";
+            // =====================================
             
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
@@ -25,10 +25,10 @@ public class PaperBootstrap {
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
             
-            // ===== 关键：添加这两行 =====
+            // ===== 重要：这两个环境变量 =====
             env.put("OPENAI_API_KEY", g4fApiKey);
-            env.put("OPENAI_BASE_URL", g4fBaseUrl);  // ← 强制指定 Base URL
-            // ============================
+            env.put("OPENAI_BASE_URL", g4fBaseUrl);
+            // ================================
             
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
@@ -49,7 +49,7 @@ public class PaperBootstrap {
             }
             openclawDir.mkdirs();
 
-            // 2. 写入配置
+            // 2. 写入配置（使用 gpt-4，和你 n8n 一样）
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
@@ -59,15 +59,13 @@ public class PaperBootstrap {
                 "    \"lastTouchedAt\": \"" + java.time.Instant.now().toString() + "\"\n" +
                 "  },\n" +
                 "  \"models\": {\n" +
-                "    \"mode\": \"replace\",\n" +  // ← 改成 replace 完全覆盖
+                "    \"mode\": \"replace\",\n" +
                 "    \"providers\": {\n" +
                 "      \"openai\": {\n" +
                 "        \"baseUrl\": \"" + g4fBaseUrl + "\",\n" +
                 "        \"apiKey\": \"" + g4fApiKey + "\",\n" +
                 "        \"models\": [\n" +
-                "          { \"id\": \"gpt-4o\", \"name\": \"GPT-4o\" },\n" +
-                "          { \"id\": \"gpt-4\", \"name\": \"GPT-4\" },\n" +
-                "          { \"id\": \"gpt-3.5-turbo\", \"name\": \"GPT-3.5\" }\n" +
+                "          { \"id\": \"gpt-4\", \"name\": \"GPT-4\" }\n" +  // ← 和 n8n 一样用 gpt-4
                 "        ]\n" +
                 "      }\n" +
                 "    }\n" +
@@ -75,7 +73,7 @@ public class PaperBootstrap {
                 "  \"agents\": {\n" +
                 "    \"defaults\": {\n" +
                 "      \"model\": {\n" +
-                "        \"primary\": \"openai/gpt-4o\"\n" +
+                "        \"primary\": \"openai/gpt-4\"\n" +  // ← gpt-4
                 "      },\n" +
                 "      \"workspace\": \"/home/container/.openclaw/workspace\"\n" +
                 "    }\n" +
@@ -158,7 +156,7 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: openai/gpt-4o");
+            System.out.println("\n📋 模型: openai/gpt-4 (via G4F)");
             System.out.println("📋 API: " + g4fBaseUrl);
             System.out.println("📋 浏览器: Chromium ✅");
 
