@@ -6,13 +6,15 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 配置中 (强制替换版)...");
+        System.out.println("🦞 [OpenClaw] 配置中 (修复路径版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
             String apiKey = "sk-g4f-token-any";
+            // ★★★ 注意：baseURL 不要带 /v1，让 SDK 自己加 ★★★
+            String zeaburBase = "https://888888888888.zeabur.app";
             String zeaburUrl = "https://888888888888.zeabur.app/v1";
             String zeaburHost = "888888888888.zeabur.app";
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
@@ -26,23 +28,38 @@ public class PaperBootstrap {
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
 
-            // ★★★ 使用 sed 强制替换所有文件 ★★★
-            System.out.println("📝 使用 sed 强制替换所有 api.openai.com...");
-            
-            ProcessBuilder sed1 = new ProcessBuilder("sh", "-c",
-                "find " + baseDir + "/node_modules -type f \\( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \\) " +
-                "-exec grep -l 'api.openai.com' {} \\; 2>/dev/null | " +
-                "xargs -I {} sed -i 's|https://api.openai.com/v1|" + zeaburUrl + "|g; s|https://api.openai.com|https://" + zeaburHost + "|g; s|api.openai.com|" + zeaburHost + "|g' {} 2>/dev/null"
+            // ★★★ 先检查当前的替换结果 ★★★
+            System.out.println("📝 检查当前 888888888888.zeabur.app 出现的位置...");
+            ProcessBuilder check = new ProcessBuilder("sh", "-c",
+                "grep -rn '888888888888.zeabur.app' " + baseDir + "/node_modules/@mariozechner/pi-ai/node_modules/openai/ 2>/dev/null | head -10"
             );
-            sed1.inheritIO();
-            Process p1 = sed1.start();
-            p1.waitFor();
-            System.out.println("  ✓ sed 替换完成");
+            check.inheritIO();
+            check.start().waitFor();
+
+            // ★★★ 确保路径正确：api.openai.com -> 888888888888.zeabur.app (不带 /v1) ★★★
+            System.out.println("\n📝 重新替换，保持正确的路径...");
+            
+            // 先恢复原始状态（如果之前有错误替换）
+            ProcessBuilder restore = new ProcessBuilder("sh", "-c",
+                "find " + baseDir + "/node_modules -type f 2>/dev/null | " +
+                "xargs grep -l '888888888888.zeabur.app' 2>/dev/null | " +
+                "xargs sed -i 's|" + zeaburHost + "|api.openai.com|g' 2>/dev/null"
+            );
+            restore.start().waitFor();
+            
+            // 现在正确替换
+            ProcessBuilder sed1 = new ProcessBuilder("sh", "-c",
+                "find " + baseDir + "/node_modules -type f 2>/dev/null | " +
+                "xargs grep -l 'api.openai.com' 2>/dev/null | " +
+                "xargs sed -i 's|api.openai.com|" + zeaburHost + "|g' 2>/dev/null"
+            );
+            sed1.start().waitFor();
+            System.out.println("  ✓ 替换完成");
 
             // ★★★ 验证替换结果 ★★★
-            System.out.println("\n📝 验证是否还有 api.openai.com...");
+            System.out.println("\n📝 验证替换结果...");
             ProcessBuilder verify = new ProcessBuilder("sh", "-c",
-                "grep -rl 'api.openai.com' " + baseDir + "/node_modules/ 2>/dev/null | wc -l"
+                "grep -rn 'https://888888888888' " + baseDir + "/node_modules/@mariozechner/pi-ai/node_modules/openai/client.js 2>/dev/null | head -5"
             );
             verify.inheritIO();
             verify.start().waitFor();
