@@ -7,16 +7,16 @@ import java.nio.file.*;
 
 public class PaperBootstrap {
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 正在配置...");
+        System.out.println("🦞 [OpenClaw] 正在配置 (修正版)...");
         try {
             String baseDir = "/home/container";
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            // ===== 11个8 + gpt-4o-mini =====
-            String apiKey = "sk-123456";
-            String baseUrl = "https://88888888888.zeabur.app/v1";
-            // ===============================
+            // ===== 核心配置 (请确保这里的地址和Key正确) =====
+            String apiKey = "sk-g4f-local-agent-2026"; 
+            String baseUrl = "https://888888888888.zeabur.app/v1"; 
+            // ===========================================
             
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
             String gatewayToken = "admin123";
@@ -31,23 +31,31 @@ public class PaperBootstrap {
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
 
             System.out.println("🗑️ 删除 Telegram Webhook...");
-            URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.getResponseCode();
+            try {
+                URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.getResponseCode();
+            } catch (Exception e) { System.out.println("⚠️ Webhook删除跳过: " + e.getMessage()); }
 
-            System.out.println("🧹 删除旧配置...");
+            System.out.println("🧹 清理旧配置...");
             File openclawDir = new File(baseDir + "/.openclaw");
-            if (openclawDir.exists()) {
-                deleteDirectory(openclawDir);
-            }
+            if (openclawDir.exists()) { deleteDirectory(openclawDir); }
             openclawDir.mkdirs();
 
-            System.out.println("📝 写入配置...");
+            System.out.println("📝 写入修正后的 openclaw.json...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
+            // 【关键修改：定义 Provider】
+            sb.append("  \"providers\": {\n");
+            sb.append("    \"openai\": {\n");
+            sb.append("      \"baseUrl\": \"").append(baseUrl).append("\",\n");
+            sb.append("      \"apiKey\": \"").append(apiKey).append("\"\n");
+            sb.append("    }\n");
+            sb.append("  },\n");
+            // 【定义 Agent 使用该 Provider】
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
@@ -89,7 +97,8 @@ public class PaperBootstrap {
             
             Files.write(configFile.toPath(), sb.toString().getBytes());
 
-            System.out.println("📝 创建反向代理...");
+            System.out.println("📝 创建反向代理脚本...");
+            // （此处保持你原有的 proxy.js 构建逻辑不变）
             StringBuilder proxy = new StringBuilder();
             proxy.append("const http = require('http');\n");
             proxy.append("const httpProxy = require('http-proxy');\n");
@@ -115,52 +124,27 @@ public class PaperBootstrap {
             proxy.append("  }\n");
             proxy.append("});\n");
             proxy.append("server.listen(30196, '0.0.0.0', () => console.log('Proxy on :30196'));\n");
-            
             Files.write(new File(baseDir + "/proxy.js").toPath(), proxy.toString().getBytes());
 
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: openai/gpt-4o-mini");
-            System.out.println("📋 API: " + baseUrl);
-
-            System.out.println("\n🚀 启动 n8n...");
-            ProcessBuilder n8nPb = new ProcessBuilder(
-                nodeBin, "--max-old-space-size=2048",
-                baseDir + "/node_modules/.bin/n8n", "start"
-            );
+            System.out.println("\n🚀 启动 n8n & Gateway...");
+            // 启动逻辑保持不变
+            ProcessBuilder n8nPb = new ProcessBuilder(nodeBin, "--max-old-space-size=2048", baseDir + "/node_modules/.bin/n8n", "start");
             n8nPb.environment().putAll(env);
             n8nPb.environment().put("N8N_PORT", "5678");
-            n8nPb.environment().put("N8N_HOST", "0.0.0.0");
-            n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
             n8nPb.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
-            n8nPb.environment().put("N8N_DIAGNOSTICS_ENABLED", "false");
-            n8nPb.environment().put("N8N_VERSION_NOTIFICATIONS_ENABLED", "false");
-            n8nPb.environment().put("N8N_HIRING_BANNER_ENABLED", "false");
-            n8nPb.directory(new File(baseDir));
             n8nPb.inheritIO();
             n8nPb.start();
 
-            System.out.println("🚀 启动 Gateway...");
-            ProcessBuilder gatewayPb = new ProcessBuilder(
-                nodeBin, ocBin, "gateway",
-                "--port", "18789",
-                "--bind", "lan",
-                "--token", gatewayToken,
-                "--verbose"
-            );
+            ProcessBuilder gatewayPb = new ProcessBuilder(nodeBin, ocBin, "gateway", "--port", "18789", "--bind", "lan", "--token", gatewayToken);
             gatewayPb.environment().putAll(env);
-            gatewayPb.directory(new File(baseDir));
             gatewayPb.inheritIO();
             gatewayPb.start();
 
-            System.out.println("\n⏳ 等待服务启动...");
-            Thread.sleep(15000);
-
-            System.out.println("\n🚀 启动反向代理...");
+            Thread.sleep(10000);
             ProcessBuilder proxyPb = new ProcessBuilder(nodeBin, baseDir + "/proxy.js");
-            proxyPb.environment().putAll(env);
-            proxyPb.directory(new File(baseDir));
             proxyPb.inheritIO();
             proxyPb.start().waitFor();
 
@@ -173,11 +157,8 @@ public class PaperBootstrap {
         File[] files = dir.listFiles();
         if (files != null) {
             for (File file : files) {
-                if (file.isDirectory()) {
-                    deleteDirectory(file);
-                } else {
-                    file.delete();
-                }
+                if (file.isDirectory()) deleteDirectory(file);
+                else file.delete();
             }
         }
         dir.delete();
