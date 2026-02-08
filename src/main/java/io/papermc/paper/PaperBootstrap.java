@@ -13,9 +13,9 @@ public class PaperBootstrap {
             String nodeBin = baseDir + "/node-v22/bin/node";
             String ocBin = baseDir + "/node_modules/.bin/openclaw";
             
-            // ===== G4F 配置 =====
-            String g4fApiKey = "fdfsdfsafsfds";
-            String g4fBaseUrl = "https://88888888888.zeabur.app/v1";
+            // ===== 你的 G4F =====
+            String apiKey = "848494156";
+            String baseUrl = "https://88888888888.zeabur.app/v1";
             // ====================
             
             String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
@@ -24,8 +24,8 @@ public class PaperBootstrap {
             Map<String, String> env = new HashMap<>();
             env.put("PATH", baseDir + "/node-v22/bin:" + System.getenv("PATH"));
             env.put("HOME", baseDir);
-            env.put("OPENAI_API_KEY", g4fApiKey);
-            env.put("OPENAI_BASE_URL", g4fBaseUrl);
+            env.put("OPENAI_API_KEY", apiKey);
+            env.put("OPENAI_BASE_URL", baseUrl);  // ← 就这一行！
             env.put("PLAYWRIGHT_BROWSERS_PATH", baseDir + "/.playwright");
             env.put("TMPDIR", baseDir + "/tmp");
             env.put("OPENCLAW_GATEWAY_TOKEN", gatewayToken);
@@ -46,29 +46,13 @@ public class PaperBootstrap {
             System.out.println("📝 写入配置...");
             File configFile = new File(baseDir + "/.openclaw/openclaw.json");
             
+            // 最简配置，让 OpenClaw 用默认的 openai provider
             StringBuilder sb = new StringBuilder();
             sb.append("{\n");
-            sb.append("  \"meta\": {\n");
-            sb.append("    \"lastTouchedVersion\": \"2026.2.3-1\",\n");
-            sb.append("    \"lastTouchedAt\": \"").append(java.time.Instant.now().toString()).append("\"\n");
-            sb.append("  },\n");
-            sb.append("  \"models\": {\n");
-            sb.append("    \"mode\": \"replace\",\n");
-            sb.append("    \"providers\": {\n");
-            sb.append("      \"g4f\": {\n");
-            sb.append("        \"type\": \"openai-compatible\",\n");
-            sb.append("        \"baseUrl\": \"").append(g4fBaseUrl).append("\",\n");
-            sb.append("        \"apiKey\": \"").append(g4fApiKey).append("\",\n");
-            sb.append("        \"models\": [\n");
-            sb.append("          { \"id\": \"gpt-4\", \"name\": \"GPT-4\" }\n");
-            sb.append("        ]\n");
-            sb.append("      }\n");
-            sb.append("    }\n");
-            sb.append("  },\n");
             sb.append("  \"agents\": {\n");
             sb.append("    \"defaults\": {\n");
             sb.append("      \"model\": {\n");
-            sb.append("        \"primary\": \"g4f/gpt-4\"\n");
+            sb.append("        \"primary\": \"openai/gpt-4\"\n");
             sb.append("      },\n");
             sb.append("      \"workspace\": \"/home/container/.openclaw/workspace\"\n");
             sb.append("    }\n");
@@ -90,7 +74,6 @@ public class PaperBootstrap {
             sb.append("    \"port\": 18789,\n");
             sb.append("    \"mode\": \"local\",\n");
             sb.append("    \"bind\": \"lan\",\n");
-            sb.append("    \"trustedProxies\": [\"127.0.0.1\", \"::1\"],\n");
             sb.append("    \"auth\": {\n");
             sb.append("      \"mode\": \"token\",\n");
             sb.append("      \"token\": \"").append(gatewayToken).append("\"\n");
@@ -139,8 +122,8 @@ public class PaperBootstrap {
             new File(baseDir + "/.openclaw/workspace").mkdirs();
             new File(baseDir + "/.n8n").mkdirs();
 
-            System.out.println("\n📋 模型: g4f/gpt-4");
-            System.out.println("📋 API: " + g4fBaseUrl);
+            System.out.println("\n📋 模型: openai/gpt-4");
+            System.out.println("📋 API: " + baseUrl);
 
             System.out.println("\n🚀 启动 n8n...");
             ProcessBuilder n8nPb = new ProcessBuilder(
