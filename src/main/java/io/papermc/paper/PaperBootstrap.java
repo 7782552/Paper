@@ -2,159 +2,130 @@ package io.papermc.paper;
 
 import java.io.*;
 import java.net.*;
-import java.util.*;
 import java.nio.file.*;
+import java.util.*;
+import java.util.regex.*;
 
 public class PaperBootstrap {
+    private static final Path UUID_FILE = Paths.get("data/uuid.txt");
+    private static String uuid;
+    private static Process singboxProcess;
+
     public static void main(String[] args) {
-        System.out.println("🦞 [OpenClaw] 正在配置 Kimi K2.5...");
         try {
-            String baseDir = "/home/container";
-            String nodeBin = baseDir + "/node-v22/bin/node";
-            String ocBin = baseDir + "/node_modules/.bin/openclaw";
+            System.out.println("🚀 节点自启动环境部署中...");
             
-            String kimiApiKey = "sk-nPdX7KQdrjVA7FcM0P5BppAOBHbZeDfuconsXzCaExWIBh0F";  // ← 换成你的真实 API Key
-            String telegramToken = "8538523017:AAEHAyOSnY0n7dFN8YRWePk8pFzU0rQhmlM";
+            // 1. 加载配置
+            Map<String, String> config = simpleYamlParser(Paths.get("config.yml"));
+            uuid = generateOrLoadUUID(config.get("uuid"));
+            String realityPort = config.getOrDefault("reality_port", "");
+            String sni = config.getOrDefault("sni", "www.bing.com");
 
-            Map<String, String> env = new HashMap<>();
-            env.put("PATH", new File(nodeBin).getParent() + ":" + System.getenv("PATH"));
-            env.put("HOME", baseDir);
-            env.put("MOONSHOT_API_KEY", kimiApiKey);
-
-            // 0. 删除 Webhook
-            System.out.println("🗑️ 删除 Telegram Webhook...");
-            URL url = new URL("https://api.telegram.org/bot" + telegramToken + "/deleteWebhook");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.getResponseCode();
-
-            // 1. 删除旧配置
-            System.out.println("🧹 删除旧配置...");
-            File openclawDir = new File(baseDir + "/.openclaw");
-            if (openclawDir.exists()) {
-                deleteDirectory(openclawDir);
+            if (realityPort.isEmpty()) {
+                System.err.println("❌ 错误: 请在 config.yml 中设置 reality_port");
+                return;
             }
-            openclawDir.mkdirs();
-            Thread.sleep(1000);
 
-            // 2. 写入配置 - 移除 api 字段，让 OpenClaw 自动检测
-            System.out.println("📝 写入 Kimi K2.5 配置...");
-            File configFile = new File(baseDir + "/.openclaw/openclaw.json");
-            
-            String config = "{\n" +
-                "  \"meta\": {\n" +
-                "    \"lastTouchedVersion\": \"2026.2.3-1\",\n" +
-                "    \"lastTouchedAt\": \"" + java.time.Instant.now().toString() + "\"\n" +
-                "  },\n" +
-                "  \"models\": {\n" +
-                "    \"mode\": \"merge\",\n" +
-                "    \"providers\": {\n" +
-                "      \"moonshot\": {\n" +
-                "        \"baseUrl\": \"https://api.moonshot.cn/v1\",\n" +
-                "        \"apiKey\": \"" + kimiApiKey + "\",\n" +
-                "        \"models\": [\n" +
-                "          { \"id\": \"kimi-k2.5\", \"name\": \"Kimi K2.5\" }\n" +
-                "        ]\n" +
-                "      }\n" +
-                "    }\n" +
-                "  },\n" +
-                "  \"agents\": {\n" +
-                "    \"defaults\": {\n" +
-                "      \"model\": {\n" +
-                "        \"primary\": \"moonshot/kimi-k2.5\"\n" +
-                "      },\n" +
-                "      \"workspace\": \"/home/container/.openclaw/workspace\"\n" +
-                "    }\n" +
-                "  },\n" +
-                "  \"channels\": {\n" +
-                "    \"telegram\": {\n" +
-                "      \"dmPolicy\": \"open\",\n" +
-                "      \"botToken\": \"" + telegramToken + "\",\n" +
-                "      \"groupPolicy\": \"open\",\n" +
-                "      \"streamMode\": \"partial\",\n" +
-                "      \"allowFrom\": [\"*\"]\n" +
-                "    }\n" +
-                "  },\n" +
-                "  \"gateway\": {\n" +
-                "    \"port\": 18789,\n" +
-                "    \"mode\": \"local\",\n" +
-                "    \"bind\": \"lan\",\n" +
-                "    \"auth\": {\n" +
-                "      \"mode\": \"token\",\n" +
-                "      \"token\": \"admin123\"\n" +
-                "    }\n" +
-                "  },\n" +
-                "  \"plugins\": {\n" +
-                "    \"entries\": {\n" +
-                "      \"telegram\": {\n" +
-                "        \"enabled\": true\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-            
-            Files.write(configFile.toPath(), config.getBytes());
-            System.out.println("✅ 配置已写入");
+            // 2. 准备工作目录
+            Path baseDir = Paths.get("data/singbox_runtime");
+            Files.createDirectories(baseDir);
+            Path bin = baseDir.resolve("sing-box");
+            Path configJson = baseDir.resolve("config.json");
 
-            // 3. 创建 workspace 目录
-            new File(baseDir + "/.openclaw/workspace").mkdirs();
+            // 3. 下载内核 (amd64 架构)
+            downloadSingBox("1.10.1", bin, baseDir);
 
-            System.out.println("\n📋 模型: moonshot/kimi-k2.5");
+            // 4. 生成 Reality 密钥对
+            Map<String, String> keys = generateRealityKeypair(bin);
+            String privateKey = keys.get("private_key");
+            String publicKey = keys.get("public_key");
 
-            // 4. 启动 n8n
-            System.out.println("\n🚀 启动 n8n...");
-            File n8nDir = new File(baseDir + "/.n8n");
-            if (!n8nDir.exists()) n8nDir.mkdirs();
+            // 5. 生成 sing-box 配置文件
+            String jsonConfig = """
+                {
+                  "log": { "level": "info" },
+                  "inbounds": [{
+                    "type": "vless",
+                    "listen": "::",
+                    "listen_port": %s,
+                    "users": [{"uuid": "%s", "flow": "xtls-rprx-vision"}],
+                    "tls": {
+                      "enabled": true,
+                      "server_name": "%s",
+                      "reality": {
+                        "enabled": true,
+                        "handshake": {"server": "%s", "server_port": 443},
+                        "private_key": "%s",
+                        "short_id": [""]
+                      }
+                    }
+                  }],
+                  "outbounds": [{"type": "direct"}]
+                }
+                """.formatted(realityPort, uuid, sni, sni, privateKey);
+            Files.writeString(configJson, jsonConfig);
 
-            ProcessBuilder n8nPb = new ProcessBuilder(
-                nodeBin, "--max-old-space-size=2048",
-                baseDir + "/node_modules/.bin/n8n", "start"
-            );
-            n8nPb.environment().putAll(env);
-            n8nPb.environment().put("N8N_PORT", "30196");
-            n8nPb.environment().put("N8N_HOST", "0.0.0.0");
-            n8nPb.environment().put("N8N_SECURE_COOKIE", "false");
-            n8nPb.environment().put("N8N_USER_FOLDER", baseDir + "/.n8n");
-            n8nPb.environment().put("N8N_DIAGNOSTICS_ENABLED", "false");
-            n8nPb.environment().put("N8N_VERSION_NOTIFICATIONS_ENABLED", "false");
-            n8nPb.environment().put("N8N_HIRING_BANNER_ENABLED", "false");
-            n8nPb.environment().put("N8N_PERSONALIZATION_ENABLED", "false");
-            n8nPb.environment().put("N8N_TEMPLATES_ENABLED", "false");
-            n8nPb.directory(new File(baseDir));
-            n8nPb.inheritIO();
-            n8nPb.start();
-            Thread.sleep(8000);
+            // 6. 运行
+            System.out.println("⚡ 正在启动 sing-box 内核...");
+            singboxProcess = new ProcessBuilder(bin.toString(), "run", "-c", configJson.toString()).inheritIO().start();
 
-            // 5. 启动 Gateway
-            System.out.println("\n🚀 启动 Gateway...");
-            ProcessBuilder gatewayPb = new ProcessBuilder(
-                nodeBin, ocBin, "gateway",
-                "--port", "18789",
-                "--bind", "lan",
-                "--token", "admin123",
-                "--verbose"
-            );
-            gatewayPb.environment().putAll(env);
-            gatewayPb.directory(new File(baseDir));
-            gatewayPb.inheritIO();
-            gatewayPb.start().waitFor();
+            // 7. 输出节点链接
+            String ip = detectPublicIP();
+            System.out.println("\n=== ✅ 部署成功 ===");
+            System.out.printf("VLESS Reality 链接:\nvless://%s@%s:%s?encryption=none&flow=xtls-rprx-vision&security=reality&sni=%s&fp=chrome&pbk=%s#Falix_Reality\n",
+                    uuid, ip, realityPort, sni, publicKey);
 
+            singboxProcess.waitFor();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    static void deleteDirectory(File dir) {
-        File[] files = dir.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory()) {
-                    deleteDirectory(file);
-                } else {
-                    file.delete();
-                }
+    private static void downloadSingBox(String version, Path bin, Path dir) throws Exception {
+        if (Files.exists(bin)) return;
+        String url = "https://github.com/SagerNet/sing-box/releases/download/v" + version + "/sing-box-" + version + "-linux-amd64.tar.gz";
+        System.out.println("⬇️ 下载内核中...");
+        try (InputStream in = new URL(url).openStream()) {
+            Files.copy(in, dir.resolve("sb.tar.gz"), StandardCopyOption.REPLACE_EXISTING);
+        }
+        new ProcessBuilder("tar", "-xzf", dir.resolve("sb.tar.gz").toString(), "-C", dir.toString(), "--strip-components=1").start().waitFor();
+        bin.toFile().setExecutable(true);
+    }
+
+    private static Map<String, String> generateRealityKeypair(Path bin) throws Exception {
+        Process p = new ProcessBuilder(bin.toString(), "generate", "reality-keypair").start();
+        String out = new String(p.getInputStream().readAllBytes());
+        Map<String, String> map = new HashMap<>();
+        Matcher m1 = Pattern.compile("PrivateKey: (\\S+)").matcher(out);
+        Matcher m2 = Pattern.compile("PublicKey: (\\S+)").matcher(out);
+        if (m1.find()) map.put("private_key", m1.group(1));
+        if (m2.find()) map.put("public_key", m2.group(1));
+        return map;
+    }
+
+    private static String detectPublicIP() {
+        try (Scanner s = new Scanner(new URL("https://api.ipify.org").openStream())) { return s.next(); }
+        catch (Exception e) { return "127.0.0.1"; }
+    }
+
+    private static Map<String, String> simpleYamlParser(Path path) throws IOException {
+        Map<String, String> map = new HashMap<>();
+        if (!Files.exists(path)) return map;
+        for (String line : Files.readAllLines(path)) {
+            if (line.contains(":") && !line.trim().startsWith("#")) {
+                String[] p = line.split(":", 2);
+                map.put(p[0].trim(), p[1].trim().replace("\"", ""));
             }
         }
-        dir.delete();
+        return map;
+    }
+
+    private static String generateOrLoadUUID(String cfg) throws IOException {
+        if (cfg != null && !cfg.isEmpty()) return cfg;
+        if (Files.exists(UUID_FILE)) return Files.readString(UUID_FILE);
+        String u = UUID.randomUUID().toString();
+        Files.createDirectories(UUID_FILE.getParent());
+        Files.writeString(UUID_FILE, u);
+        return u;
     }
 }
